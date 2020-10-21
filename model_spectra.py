@@ -33,6 +33,8 @@ semia_cgs = semia_sol*R_sol_cgs # Semi-major axis in cgs units
 Manser_2016_angle_deg = 95
 Manser_2016_angle = Manser_2016_angle_deg*np.pi/180
 
+e = 0.54 # Eccentricity
+
 '''
 Convert GR velocities to km/s
 '''
@@ -106,7 +108,7 @@ class Hist1D(Hist):
         v_hist = []
         for i in range(0, len(v_bins)-1):
             v_average = (v_bins[i+1] + v_bins[i])/2
-            v_hist.append(v_average)
+            v_hist = np.append(v_hist, v_average)
             v_hist = np.array(v_hist)
         return hist, v_hist
         
@@ -262,15 +264,9 @@ class Tomogram_PNG (Tomogram):
         self.vx_per_pixel = self.tom_xran/self.xran
         self.vy_per_pixel = self.tom_yran/self.yran
         
-    def plot(self, e):
-        self.plt_tom(e)
+    def plot(self, e, ax):
+        self.plt_tom(e, ax)
         plt.imshow(self.img)
-        plt.legend(fancybox=True, framealpha=0.4, loc='upper right')
-        self.f_name = 'tomogram_Manser_2016.png'
-        print('Writing to', self.f_name) # Status message
-        plt.savefig(self.f_name)
-        plt.show()
-        plt.close()
 
 class ascii_file:
     # A class for ascii files
@@ -307,12 +303,13 @@ def read_ascii(file_list):
     vy = np.array(vy)
     return vx, vy
 
-def find_files(ascii_files, e):
+def find_files(ascii_files, e, n_orbit):
     # Sorts files by eccentricity of asteroid orbit
     e_str = str(e)[2]
+    n_orbit_str = str(n_orbit)
     file_list = []
     for f in file_list:
-        if f[-13] == e_str:
+        if f[-13] == e_str and f[-9:-7] == n_orbit_str:
             file_list.append(f)
     return file_list
 
@@ -327,7 +324,6 @@ def finalise_plot(fig, filename):
 def plt_tom_single():
     # Plot a single tomogram (matching SDSS J1228+1040)
     vx, vy = read_ascii(args.files)
-    e = 0.54
     tom = Tomogram_Data(vx, vy)
     fig, axs = plt.subplots()
     tom.plot(e, axs)
@@ -341,15 +337,19 @@ def plt_ecc_comp():
     # Plot tomogram comparisons of 4 different eccentricities
     fig, axs = plt.subplots(4, 4, sharex=True, sharey=True)
     e_array = [0.1, 0.3, 0.5, 0.7]
-    step = 0
+    n_orbit_array = [10, 20, 50, 60]
+    e_step = 0
     for ax in axs.flat:
-        e = e_array[step]
+        e = e_array[e_step]
+        n_orbit_step = 0
         for sub_ax in ax:
-            file_list = find_files(args.files, e)
+            n_orbit = n_orbit_array[n_orbit_step]
+            file_list = find_files(args.files, e, n_orbit)
             vx, vy = read_ascii(file_list)
             tom = Tomogram_Data(vx, vy)
             tom.plot(e, sub_ax)
-        step += 1
+            n_orbit_step += 1
+        e_step += 1
     plt.legend(fancybox=True, framealpha=0.4, loc='upper left')
     filename = 'tom_comp.png'
     finalise_plot(fig, filename)
@@ -380,6 +380,16 @@ def plt_spec_comp():
     plt.ylabel(r'Particles ($\times 10^5$)')
     filename = 'spec_line_comp.png'
     finalise_plot(fig, filename)
+
+def plt_tom_png():
+    filename = '../Manser_2016_tomogram.PNG'
+    fig, axs = plt.subplots()
+    fig.set_size_inches(10,10)
+    tom = Tomogram_PNG(1, 1, filename)
+    tom.plot(e, axs)
+    plt.legend(fancybox=True, framealpha=0.4, loc='upper right')
+    save_f_name = 'tomogram_Manser_2016.png'
+    finalise_plot(fig, save_f_name)
     
 def plt_var():
     # Reproduce variability of Ca II spectral lines
@@ -405,6 +415,7 @@ def plt_var():
 Commands
 '''
 plt_tom_single()
+#plt_tom_png()
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
