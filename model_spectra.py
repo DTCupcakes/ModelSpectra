@@ -30,7 +30,8 @@ WD_mass_cgs = WD_mass_sol*M_sol_cgs # White dwarf mass in cgs units
 semia_sol = 0.73 # Semi-major axis in solar units
 semia_cgs = semia_sol*R_sol_cgs # Semi-major axis in cgs units
 
-Manser_2016_angle = 120*np.pi/180
+Manser_2016_angle_deg = 95
+Manser_2016_angle = Manser_2016_angle_deg*np.pi/180
 
 '''
 Convert GR velocities to km/s
@@ -116,47 +117,17 @@ class SpecLines (Hist1D):
         self.max_WHT = 560 # Maximum velocity from WHT observations in 2006
         self.min_WHT = -self.max_WHT # Minimum velocity from WHT observations in 2006
     
-    #def filename(self, str_n, angle):
-        #self.f_name = 'spec_line_' + str_n + '_' + str(angle) + 'deg.pdf'
-    
     def plt_angle(self, angle, ax):
         # Produce spectral line angle clockwise from +ve y-axis
         print('Creating spectral line at ',angle,' degrees...') # Status message
-        #angle_rad = angle*np.pi/180
         vx, vy = self.rotate(angle) # Rotate velocities anticlockwise by angle
-    
-        # Generate histogram of projected velocities
-        #hist, v_bins, patches = plt.hist(vy, bins=self.n_bins, range=self.range)
-        #plt.close() # Make sure only a single plot is shown
-     
-        # Plot a histogram curve of projected velocities
-        #v_hist = []
-        #for i in range(0, len(v_bins)-1):
-            #v_average = (v_bins[i+1] + v_bins[i])/2
-            #v_hist.append(v_average)
-            
         hist, v_hist = self.plt_hist(vy)
         
-        #plt.figure(1, figsize=[10,8])
         ax.plot(v_hist, hist/10000)
-        #plt.title('Projection angle = '+str(angle)+' degrees')
-        #plt.xlabel('Projected velocity (km/s)')
-        #plt.ylabel(r'Particles ($\times 10^5$)')
         ax.xlim(self.vmin, self.vmax)
         ax.axvline(x=0, linestyle='--')
         ax.axvline(x=self.max_WHT, linestyle='-.')
         ax.axvline(x=self.min_WHT, linestyle='-.')
-        #self.filename(str_n, angle)
-        #plt.savefig(self.f_name)
-        #plt.show()
-        #plt.close()
-        
-    #def plt_angles(self, angle_diff, str_n):
-        # Produce a set of spectral lines separated by angle_diff (in degrees)
-        #nsteps = int(360/angle_diff + 1)
-        #angle_y_deg = np.linspace(0, 360, nsteps)
-        #for angle in angle_y_deg:
-            #self.plt_angle(angle, str_n)
 
 class Hist2D (Hist):
     # Plot a 2D histogram
@@ -238,7 +209,6 @@ class Tomogram(Hist2D):
         self.vy_plot_max = self.vx_plot_max
         self.vy_plot_min = -self.vx_plot_max
         
-        #plt.figure(4, figsize=[10,10])
         plt.xticks(self.x_locs, labels)
         plt.yticks(self.y_locs, labels)
         plt.xlim(self.x_scale(self.vx_plot_min), self.x_scale(self.vx_plot_max))
@@ -254,9 +224,6 @@ class Tomogram_Data (Tomogram):
     def __init__(self, vx_array, vy_array):
         super().__init__(vx_array, vy_array)
         
-    #def filename(self, str_n):
-        #self.f_name = 'tomogram_' + str_n + '.png'
-    
     def plt_Kep_r(self, ax):
         # Plot circles of Keplerian velocity at particular physical radii
         radii = np.array([0.2, 0.64, 1.2, 2]) # Radii in solar radii
@@ -276,12 +243,6 @@ class Tomogram_Data (Tomogram):
         self.plt_tom(e, ax)
         self.plt_Kep_r(ax)
         ax.imshow(self.img)
-        #ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
-        #self.filename(str_n)
-        #print('Writing to', self.f_name) # Status message
-        #plt.savefig(self.f_name)
-        #plt.show()
-        #plt.close()
 
 class Tomogram_PNG (Tomogram):
     # Produce tomogram from a PNG image
@@ -359,9 +320,9 @@ def finalise_plot(fig, filename):
     # Save figure and show
     fig.tight_layout()
     print('Writing to', filename) # Status message
-    fig.savefig(filename)
-    fig.show()
-    fig.close()
+    plt.savefig(filename)
+    plt.show()
+    plt.close()
 
 def plt_tom_single():
     # Plot a single tomogram (matching SDSS J1228+1040)
@@ -369,9 +330,10 @@ def plt_tom_single():
     e = 0.54
     tom = Tomogram_Data(vx, vy)
     fig, axs = plt.subplots()
-    tom.plot(e, axs[0])
+    tom.plot(e, axs)
+    fig.set_size_inches(10,10)
     str_n = '90-99'
-    fig.legend(fancybox=True, framealpha=0.4, loc='upper left')
+    plt.legend(fancybox=True, framealpha=0.4, loc='upper left')
     filename = 'tomogram_' + str_n + '.png'
     finalise_plot(fig, filename)
 
@@ -388,7 +350,7 @@ def plt_ecc_comp():
             tom = Tomogram_Data(vx, vy)
             tom.plot(e, sub_ax)
         step += 1
-    fig.legend(fancybox=True, framealpha=0.4, loc='upper left')
+    plt.legend(fancybox=True, framealpha=0.4, loc='upper left')
     filename = 'tom_comp.png'
     finalise_plot(fig, filename)
     
@@ -442,19 +404,7 @@ def plt_var():
 '''
 Commands
 '''
-# Read in velocity data
-#vx, vy = read_ascii(args.files)
-#str_n = '90-99'
-
-# Plot spectral lines
-#spec_CaII = SpecLines(vx, vy)
-#spec_CaII.plt_angles(90, str_n)
-
-# Plot Manser (2016) tomogram
-#tom = Tomogram_PNG(1, 1, args.files[0])
-#tom.plot(e)
-
 plt_tom_single()
-plt_ecc_comp()
-plt_spec_comp()
-plt_var()
+#plt_ecc_comp()
+#plt_spec_comp()
+#plt_var()
