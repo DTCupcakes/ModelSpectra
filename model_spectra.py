@@ -34,6 +34,7 @@ Manser_2016_angle_deg = 95
 Manser_2016_angle = Manser_2016_angle_deg*np.pi/180
 
 e = 0.54 # Eccentricity
+str_n = '90-99'
 
 '''
 Convert GR velocities to km/s
@@ -124,9 +125,10 @@ class SpecLines (Hist1D):
         print('Creating spectral line at ',angle,' degrees...') # Status message
         vx, vy = self.rotate(angle) # Rotate velocities anticlockwise by angle
         hist, v_hist = self.plt_hist(vy)
-        
-        ax.plot(v_hist, hist/10000)
-        ax.xlim(self.vmin, self.vmax)
+        hist = hist/100000
+
+        plt.plot(v_hist, hist)
+        plt.xlim(self.vmin, self.vmax)
         ax.axvline(x=0, linestyle='--')
         ax.axvline(x=self.max_WHT, linestyle='-.')
         ax.axvline(x=self.min_WHT, linestyle='-.')
@@ -321,21 +323,31 @@ def finalise_plot(fig, filename):
     plt.show()
     plt.close()
 
+def plt_spec_single(angle):
+    # Plot a single spectral line from a particular angle
+    vx, vy = read_ascii(args.files)
+    spec = SpecLines(vx, vy)
+    fig = plt.figure(1, figsize=[10,10])
+    axs = fig.subplots()
+    spec.plt_angle(angle, axs)
+    filename = 'spec_line_' + str_n + '_' + str(angle) + '.png'
+    finalise_plot(fig, filename)
+
 def plt_tom_single():
     # Plot a single tomogram (matching SDSS J1228+1040)
     vx, vy = read_ascii(args.files)
     tom = Tomogram_Data(vx, vy)
-    fig, axs = plt.subplots()
+    fig = plt.figure(1, figsize=[10,10])
+    axs = fig.subplots()
     tom.plot(e, axs)
-    fig.set_size_inches(10,10)
-    str_n = '90-99'
     plt.legend(fancybox=True, framealpha=0.4, loc='upper left')
     filename = 'tomogram_' + str_n + '.png'
     finalise_plot(fig, filename)
 
 def plt_ecc_comp():
     # Plot tomogram comparisons of 4 different eccentricities
-    fig, axs = plt.subplots(4, 4, sharex=True, sharey=True)
+    fig = plt.figure(1, figsize=[10,10])
+    axs = fig.subplots(4, 4, sharex=True, sharey=True)
     e_array = [0.1, 0.3, 0.5, 0.7]
     n_orbit_array = [10, 20, 50, 60]
     e_step = 0
@@ -366,7 +378,8 @@ def plt_spec_angles(angle_diff, spec, ax):
     
 def plt_spec_comp():
     # Plot tomogram comparisons of 4 different eccentricities
-    fig, axs = plt.subplots(4, 6, sharex=True, sharey=True)
+    fig = plt.figure(1, figsize=[10,10])
+    axs = fig.subplots(4, 6, sharex=True, sharey=True)
     e_array = [0.1, 0.3, 0.5, 0.7]
     step = 0
     for ax in axs.flat:
@@ -382,9 +395,10 @@ def plt_spec_comp():
     finalise_plot(fig, filename)
 
 def plt_tom_png():
+    # Plot tomogram with data input as a PNG screenshot
     filename = '../Manser_2016_tomogram.PNG'
-    fig, axs = plt.subplots()
-    fig.set_size_inches(10,10)
+    fig = plt.figure(1, figsize=[10,10])
+    axs = fig.subplots()
     tom = Tomogram_PNG(1, 1, filename)
     tom.plot(e, axs)
     plt.legend(fancybox=True, framealpha=0.4, loc='upper right')
@@ -403,7 +417,8 @@ def plt_var():
     shift = np.array(shift)
 
     # Plot the spectrum variability
-    fig, axs = plt.subplots()
+    fig = plt.figure(1, figsize=[10,10])
+    axs = fig.subplots()
     time = np.linspace(0, 2, num=file_no)
     plt.plot(time, shift, marker='o', linestyle='None')
     plt.xlabel('Orbital Phase')
@@ -414,7 +429,9 @@ def plt_var():
 '''
 Commands
 '''
-plt_tom_single()
+# Any angles should be in radians
+plt_spec_single(0)
+#plt_tom_single()
 #plt_tom_png()
 #plt_ecc_comp()
 #plt_spec_comp()
