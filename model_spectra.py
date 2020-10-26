@@ -30,33 +30,36 @@ WD_mass_cgs = WD_mass_sol*M_sol_cgs # White dwarf mass in cgs units
 semia_sol = 0.73 # Semi-major axis in solar units
 semia_cgs = semia_sol*R_sol_cgs # Semi-major axis in cgs units
 
-Manser_2016_angle_deg = 95
-Manser_2016_angle = Manser_2016_angle_deg*np.pi/180
+Manser_2016_angle = 95
 
 e = 0.54 # Eccentricity
 str_n = '90-99'
 
 '''
-Convert GR velocities to km/s
+Functions to print error messages
 '''
-def GR_to_kms(vx,vy):
-    c = c_cgs*cms_to_kms
-    vx_kms = vx*c
-    vy_kms = vy*c
-    return vx_kms, vy_kms
+def err_units(v):
+    if np.amax(v) > 10000:
+        print("Particle velocities are larger than plot limits.")
+    if np.amax(v) < 10:
+        print("Particle velocities are much smaller than plot limits.")
+    print("Are you sure the velocities are in the right units?")
+
+def err_no_files(file_array):
+    if len(file_array) == 0:
+        print("File array is empty.")
 
 '''
-Get acceleration from position (orbit)
+Orbit integration functions
 '''
 def acc(x):
+    # Get acc. from pos.
     r = np.sqrt(x[0]**2+x[1]**2)
     a = (-G_cgs*WD_mass_cgs/r**3)*x
     return a
 
-'''
-Integrate over an orbit with eccentricity e and return velocities
-'''
 def integrate_orbit(e):
+    # Integrate over an orbit with eccentricity e and return velocities
     n_points = 1000
     period = 2*np.pi*np.sqrt(semia_cgs**3/(G_cgs*WD_mass_cgs))
     dt = period/n_points # timestep
@@ -75,18 +78,24 @@ def integrate_orbit(e):
         vy_n[n] = v[1]*cms_to_kms
     return vx_n, vy_n
 
+'''
+Plot Classes
+'''
 class Hist:
     # General histogram (1D or 2D)
     def __init__(self, vx_array, vy_array):
         self.vx = np.hstack(vx_array) # hstack flattens arrays into 1D
         self.vy = np.hstack(vy_array)
+        err_units(vx) # Check if velocities are in the right units
+        print(np.average(self.vx), np.average(self.vy))
         self.v_mag = np.sqrt(self.vx**2 + self.vy**2)
         self.v_angle = np.arctan2(self.vy, self.vx)
         
         self.n_bins = 256
 
     def rotate(self, angle):
-       # Rotate velocities by angle anticlockwise
+       # Rotate velocities by angle (degrees) anticlockwise
+       angle = angle*np.pi/180
        v_mag = self.v_mag
        v_angle = self.v_angle + angle
        vx = v_mag*np.cos(v_angle)
@@ -122,7 +131,7 @@ class SpecLines (Hist1D):
     
     def plt_angle(self, angle, ax):
         # Produce spectral line angle clockwise from +ve y-axis
-        print('Creating spectral line at ',angle,' degrees...') # Status message
+        print('Creating spectral line at ',angle,' degrees.') # Status message
         vx, vy = self.rotate(angle) # Rotate velocities anticlockwise by angle
         hist, v_hist = self.plt_hist(vy)
         hist = hist/100000
@@ -164,12 +173,13 @@ class Hist2D (Hist):
         plt.close() # This stops the histogram from plotting as a separate figure
         img = np.flip(img,1)
         img = np.transpose(img)
-        self.img = self.blur(img)
+        img = self.blur(img)
+        return img
     
 class Tomogram(Hist2D):
     def __init__(self, vx_array, vy_array):
         super().__init__(vx_array, vy_array)
-        self.plt_hist2D()
+        self.img = self.plt_hist2D()
         self.tom_xran = self.vx_bins[-1] - self.vx_bins[0]
         self.tom_yran = self.vy_bins[-1] - self.vy_bins[0]
         self.vx_min = self.vx_bins[0]
@@ -309,10 +319,12 @@ def find_files(ascii_files, e, n_orbit):
     # Sorts files by eccentricity of asteroid orbit
     e_str = str(e)[2]
     n_orbit_str = str(n_orbit)
+    print('Finding files for orbit',n_orbit_str,'at e=',e_str)
     file_list = []
     for f in file_list:
         if f[-13] == e_str and f[-9:-7] == n_orbit_str:
             file_list.append(f)
+    err_no_files(file_list) # Return an error if the file list is empty
     return file_list
 
 def finalise_plot(fig, filename):
@@ -370,7 +382,6 @@ def plt_spec_angles(angle_diff, spec, ax):
     # Produce a set of spectral lines separated by angle_diff (in degrees)
     nsteps = int(360/angle_diff + 1)
     angle_y_deg = np.linspace(0, 360, nsteps)
-    angle_y = angle_y_deg*np.pi/180
     angle_step = 0
     for sub_ax in ax:
         spec.plt_angle(angle_y[angle_step], sub_ax)
@@ -428,9 +439,10 @@ def plt_var():
 
 '''
 Commands
+- All angles should be in degrees
 '''
 # Any angles should be in radians
-plt_spec_single(0)
+plt_spec_single(90)
 #plt_tom_single()
 #plt_tom_png()
 #plt_ecc_comp()
