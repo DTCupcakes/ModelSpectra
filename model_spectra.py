@@ -39,11 +39,15 @@ str_n = '90-99'
 Functions to print error messages
 '''
 def err_units(v):
+    wrong_units = False
     if np.amax(v) > 10000:
         print("Particle velocities are larger than plot limits.")
+        wrong_units = True
     if np.amax(v) < 10:
         print("Particle velocities are much smaller than plot limits.")
-    print("Are you sure the velocities are in the right units?")
+        wrong_units = True
+    if wrong_units == True:
+        print("Are you sure the velocities are in the right units?")
 
 def err_no_files(file_array):
     if len(file_array) == 0:
@@ -86,8 +90,7 @@ class Hist:
     def __init__(self, vx_array, vy_array):
         self.vx = np.hstack(vx_array) # hstack flattens arrays into 1D
         self.vy = np.hstack(vy_array)
-        err_units(vx) # Check if velocities are in the right units
-        print(np.average(self.vx), np.average(self.vy))
+        err_units(self.vx) # Check if velocities are in the right units
         self.v_mag = np.sqrt(self.vx**2 + self.vy**2)
         self.v_angle = np.arctan2(self.vy, self.vx)
         
@@ -309,6 +312,7 @@ def read_ascii(file_list):
     for filename in file_list:
         data = ascii_file(filename)
         vx_i, vy_i = data.read_v()
+        data.f.close()
         vx.append(vx_i)
         vy.append(vy_i)
     vx = np.array(vx)
@@ -437,14 +441,23 @@ def plt_var():
     filename = 'var_90-99.pdf'
     finalise_plot(fig, filename)
 
+def exp_hist2D():
+    vx, vy = read_ascii(args.files)
+    hist2D = Hist2D(vx, vy)
+    img = hist2D.plt_hist2D()
+    filename = 'hist2D_WD_14_90-99.txt'
+    print('Writing 2D histogram to',filename)
+    np.savetxt(filename, img)
+
 '''
 Commands
 - All angles should be in degrees
 '''
 # Any angles should be in radians
-plt_spec_single(90)
+#plt_spec_single(90)
 #plt_tom_single()
 #plt_tom_png()
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
+exp_hist2D()
