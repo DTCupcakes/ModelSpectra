@@ -4,6 +4,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from scipy import signal
+from scipy.optimize import minimize
+import emcee
 
 # Get filenames from command line
 parser = argparse.ArgumentParser(description='Some files.',formatter_class=argparse.RawTextHelpFormatter)
@@ -62,13 +64,13 @@ def acc(x):
     a = (-G_cgs*WD_mass_cgs/r**3)*x
     return a
 
-def integrate_orbit(e):
+def integrate_orbit(semia, e):
     # Integrate over an orbit with eccentricity e and return velocities
     n_points = 1000
-    period = 2*np.pi*np.sqrt(semia_cgs**3/(G_cgs*WD_mass_cgs))
+    period = 2*np.pi*np.sqrt(semia**3/(G_cgs*WD_mass_cgs))
     dt = period/n_points # timestep
-    x = np.array([semia_cgs*(1+e),0]) # Initial position
-    v = np.array([0,np.sqrt(G_cgs*WD_mass_cgs*(1-e)/(semia_cgs*(1+e)))]) # Initial velocity
+    x = np.array([semia*(1+e),0]) # Initial position
+    v = np.array([0,np.sqrt(G_cgs*WD_mass_cgs*(1-e)/(semia*(1+e)))]) # Initial velocity
     vx_n = np.zeros(n_points)
     vy_n = np.zeros(n_points)
     for n in range(n_points):
@@ -209,7 +211,7 @@ class Tomogram(Hist2D):
     
     def plt_orbit(self, e):
         # Plot an orbit with a particular eccentricity (in velocity space)
-        vx_n, vy_n = integrate_orbit(e)
+        vx_n, vy_n = integrate_orbit(semia_cgs, e)
         orbit = Hist(vx_n, vy_n)
         vx_n, vy_n = orbit.rotate(Manser_2016_angle) # Rotate plotted orbit
         vx_n = self.x_scale(vx_n)
@@ -454,6 +456,7 @@ def plt_hist2D_polar():
     vx, vy = read_ascii(args.files)
     data = Hist(vx, vy)
     img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins) # Plot 2D histogram
+    #plt.show()
     plt.close()
     alpha = np.array([])
     v_mags = np.array([])
@@ -473,9 +476,48 @@ def plt_hist2D_polar():
         interp2 = np.interp(half_max, img[n,:], v_mags)
         v_mag_err = np.append(v_mag_err, 0.5*(interp2-interp1)) # Uncertainty in v_mag
 
-    plt.errorbar(alpha, v_mag, yerr=v_mag_err)
-    plt.show()
+    #plt.errorbar(alpha, v_mag, yerr=v_mag_err)
+    #plt.plot(alpha, v_mag)
+    #plt.show()
     return alpha, v_mag, v_mag_err
+
+def get_model(alpha, semia, e):
+    # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
+    vx, vy = integrate_orbit(semia, e)
+    v_mag = np.sqrt(vx**2 + vy**2)
+    v_angle = np.arctan2(vy,vx)
+    return np.interp(alpha, v_angle, v_mag, period=2*np.pi)
+
+def log_likelihood(sample_params, alpha, v_mag, v_mag_err):
+    semia, e, log_f = sample_params
+    model = get_model(alpha, semia, e)
+    sigma2 = v_mag_err**2 + model**2 * np.exp(2*log_f)
+    return -0.5*np.sum((v_mag - model)**2/sigma2 + np.log(sigma2))
+
+def log_prior(sample_params):
+    semia, e, log_f = sample_params
+    if 0.1 < semia < 2.0 and 0.0 < e < 1.0 and -10.0 < log_f < 1.0:
+        return 0.0
+    return -np.inf
+
+def log_probability(sample_params, alpha, v_mag, v_mag_err):
+    lp = log_prior(sample_params)
+    if not np.isfinite(lp):
+        return -np.inf
+    return lp + log_likelihood(sample_params, alpha, v_mag, v_mag_err)
+
+def get_ellipse_parameters():
+    # Get values for the parameters of the ellipse
+    alpha, v_mag, v_mag_err = plt_hist2D_polar() # Data
+    nll = lambda *args: -log_likelihood(*args) # Log likelihood function
+    initial_guess = np.array([1.0, 0.5, 0.0]) # Initial guess for parameters
+    bnds = ((0.1, None), (0, 0.999), (None, None)) # Bounds on the parameters (semia, e, logf)
+    params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
+    semia, e, log_f = params.x
+    print("Maximum likelihood estimates:")
+    print("semia = {0:.3f}".format(semia))
+    print("e = {0:.3f}".format(e))
+    print("f = {0:.3f}".format(np.exp(log_f)))
 
 '''
 Commands
@@ -489,4 +531,5 @@ Commands
 #plt_spec_comp()
 #plt_var()
 #exp_hist2D()
-plt_hist2D_polar()
+#plt_hist2D_polar()
+get_ellipse_parameters()
