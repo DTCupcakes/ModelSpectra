@@ -6,6 +6,7 @@ import matplotlib.image as mpimg
 from scipy import signal
 from scipy.optimize import minimize
 import emcee
+import corner
 
 # Get filenames from command line
 parser = argparse.ArgumentParser(description='Some files.',formatter_class=argparse.RawTextHelpFormatter)
@@ -518,6 +519,31 @@ def get_ellipse_parameters():
     print("semia = {0:.3f}".format(semia))
     print("e = {0:.3f}".format(e))
     print("f = {0:.3f}".format(np.exp(log_f)))
+
+    pos = params.x + 1e-4*np.random.randn(32,3)
+    nwalkers, ndim = pos.shape
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(alpha, v_mag, v_mag_err))
+    sampler.run_mcmc(pos, 5000);
+    
+    fig, axes = plt.subplots(3, figsize=(10,7), sharex=True)
+    samples = sampler.get_chain()
+    labels = ["semia", "e", "log(f)"]
+    for i in range(ndim):
+        ax = axes[i]
+        ax.plot(samples[:,:,i], "k", alpha=0.3)
+        ax.set_xlim(0, len(samples))
+        ax.set_ylabel(labels[i])
+        ax.yaxis.set_label_coords(-0.1, 0.5)
+    axes[-1].set_xlabel("step number")
+    plt.show()
+
+    tau = sampler.get_autocorr_time()
+    print(tau)
+
+    flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
+    print(flat_samples.shape)
+
+    #fig = corner.corner(flat_samples, labels=labels);
 
 '''
 Commands
