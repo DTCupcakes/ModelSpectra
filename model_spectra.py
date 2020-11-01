@@ -4,7 +4,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from scipy import signal
-from scipy.optimize import minimize
+from scipy.optimize import minimize, curve_fit
 import emcee
 import corner
 
@@ -452,35 +452,45 @@ def exp_hist2D():
     print('Writing 2D histogram to',filename)
     np.save(filename, img)
 
+def Gauss(x, a, x0, sigma):
+    return a* np.exp(-(x - x0)**2/(2*sigma**2))
+
 def plt_hist2D_polar():
     # Plot 2D histogram of vx, vy in polar coordinates and find radial maxima
     vx, vy = read_ascii(args.files)
     data = Hist(vx, vy)
-    img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins) # Plot 2D histogram
+    img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins, range=[[-np.pi, np.pi],[0, 1500]]) # Plot 2D histogram
     #plt.show()
-    plt.close()
+    #plt.close()
+
     alpha = np.array([])
-    v_mags = np.array([])
+    v_mag = np.array([])
     for n in range(len(v_angle_bins)-1):
         alpha = np.append(alpha, 0.5*(v_angle_bins[n]+v_angle_bins[n+1])) # Angle list
-        v_mags = np.append(v_mags, 0.5*(v_mag_bins[n]+v_mag_bins[n+1])) # Velocity magnitude list
-    v_angle_max_args = np.argmax(img, axis=1) # Arguments of radial maxima for each angle
-    index_no = np.arange(data.n_bins)
-    v_mag = np.interp(v_angle_max_args, index_no, v_mags) # Velocity magnitude for each maxima
+        v_mag = np.append(v_mag, 0.5*(v_mag_bins[n]+v_mag_bins[n+1])) # Velocity magnitude list
+    
+    v_max = np.amax(img, axis=1) # Maximum histogram value for each alpha
+    v_max_arg = np.argmax(img, axis=1) # Index of max histogram value for each alpha
+    v_mag_max = v_mag_bins[-1]*v_max_arg/len(img) # v_mag value of max histogram value
+    half_max = 0.5*v_max # Half of max histogram value
 
     v_mag_err = np.array([])
     for n in range(len(img)):
-        max_val = np.amax(img[n,:])
-        max_arg = np.argmax(img[n,:])
-        half_max = max_val/2 # FWHM
-        interp1 = np.interp(half_max, img[n,:max_arg], v_mags[:max_arg])
-        interp2 = np.interp(half_max, img[n,:], v_mags)
-        v_mag_err = np.append(v_mag_err, 0.5*(interp2-interp1)) # Uncertainty in v_mag
+        sigma = np.sqrt(np.sum(img[n,:]*(v_mag - v_mag_max[n])**2)/np.sum(img[n,:]))
+        popt, pcov = curve_fit(Gauss, v_mag, img[n,:], p0=[v_max[n], v_mag_max[n], sigma])
+        v_mag_err = np.append(v_mag_err, sigma) # Uncertainty in v_mag_max
+        '''
+        if n == 10:
+            plt.plot(v_mag, img[n,:], label='data')
+            plt.plot(v_mag, Gauss(v_mag, *popt), label='Gaussian')
+            plt.legend()
+            plt.show()
+        '''
 
-    #plt.errorbar(alpha, v_mag, yerr=v_mag_err)
-    #plt.plot(alpha, v_mag)
-    #plt.show()
-    return alpha, v_mag, v_mag_err
+    plt.errorbar(alpha, v_mag_max, yerr=v_mag_err, label='plot err')
+    plt.legend()
+    plt.show()
+    return alpha, v_mag_max, v_mag_err
 
 def get_model(alpha, semia, e):
     # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
