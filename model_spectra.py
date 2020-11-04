@@ -2,17 +2,27 @@ import argparse
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from scipy import signal
 from scipy.optimize import minimize, curve_fit
+import astropy.io.fits as fits
 import emcee
 import corner
-import astropy.io.fits as fits
+
+import utils.read_utils as rd
+import utils.orbit_utils as orb
+import utils.img_utils as img
+import utils.emcee_utils as mc_util 
 
 # Get filenames from command line
 parser = argparse.ArgumentParser(description='Some files.',formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files',nargs='+',help='files with the appropriate particle data')
 args = parser.parse_args()
+
+# Import observational data from Manser et al. (2016)
+hdulist_map = fits.open('map10000_2.fits')
+velocity_data = hdulist_map[1].data
+#plt.imshow(velocity_data)
+#plt.show()
 
 # Set the font (size) for plots
 #font = {'size' : 28}
@@ -20,19 +30,13 @@ args = parser.parse_args()
 
 '''
 Constants and conversions
-sol -> Solar units
 '''
-c_cgs = 3e10 # Speed of light
-cms_to_kms = 1e-5
+R_sol = orb.R_sol
+G = orb.G
+WD_mass = orb.WD_mass
+cms_to_kms = orb.cms_to_kms
 
-G_cgs = 6.67e-8 # Gravitational constant
-R_sol_cgs = 6.9634e10 # Solar radius in cgs units
-M_sol_cgs = 2.e33 # Solar mass in cgs units
-WD_mass_sol = 0.705 # White dwarf mass in solar units
-WD_mass_cgs = WD_mass_sol*M_sol_cgs # White dwarf mass in cgs units
-
-semia_sol = 0.73 # Semi-major axis in solar units
-semia_cgs = semia_sol*R_sol_cgs # Semi-major axis in cgs units
+semia = 0.73*R_sol # Semi-major axis in cgs units
 
 Manser_2016_angle = 95
 
@@ -52,39 +56,6 @@ def err_units(v):
         wrong_units = True
     if wrong_units == True:
         print("Are you sure the velocities are in the right units?")
-
-def err_no_files(file_array):
-    if len(file_array) == 0:
-        print("File array is empty.")
-
-'''
-Orbit integration functions
-'''
-def acc(x):
-    # Get acc. from pos.
-    r = np.sqrt(x[0]**2+x[1]**2)
-    a = (-G_cgs*WD_mass_cgs/r**3)*x
-    return a
-
-def integrate_orbit(semia, e):
-    # Integrate over an orbit with eccentricity e and return velocities
-    n_points = 1000
-    period = 2*np.pi*np.sqrt(semia**3/(G_cgs*WD_mass_cgs))
-    dt = period/n_points # timestep
-    x = np.array([semia*(1+e),0]) # Initial position
-    v = np.array([0,np.sqrt(G_cgs*WD_mass_cgs*(1-e)/(semia*(1+e)))]) # Initial velocity
-    vx_n = np.zeros(n_points)
-    vy_n = np.zeros(n_points)
-    for n in range(n_points):
-        # Integrate using the leapfrog method
-        a = acc(x)
-        v = v + 0.5*dt*a
-        x = x + dt*v
-        a = acc(x)
-        v = v + 0.5*dt*a
-        vx_n[n] = v[0]*cms_to_kms
-        vy_n[n] = v[1]*cms_to_kms
-    return vx_n, vy_n
 
 '''
 Plot Classes
@@ -213,12 +184,27 @@ class Tomogram(Hist2D):
     
     def plt_orbit(self, e):
         # Plot an orbit with a particular eccentricity (in velocity space)
-        vx_n, vy_n = integrate_orbit(semia_cgs, e)
+        vx_n, vy_n = orb.integrate_orbit(semia, e)
         orbit = Hist(vx_n, vy_n)
         vx_n, vy_n = orbit.rotate(Manser_2016_angle) # Rotate plotted orbit
         vx_n = self.x_scale(vx_n)
         vy_n = self.y_scale(vy_n)
         return vx_n, vy_n
+    
+    def plt_Kep_r(self, ax):
+        # Plot circles of Keplerian velocity at particular physical radii
+        radii = np.array([0.2, 0.64, 1.2, 2]) # Radii in solar radii
+        v_radii = np.sqrt(G*WD_mass/(radii*R_sol))*cms_to_kms # Convert radius to kms
+        # Add circles to the tomogram
+        step = 0
+        linestyles = ['--', '-.', ':' , '-']
+        theta = np.linspace(0, 2*np.pi, 100)
+        for r in v_radii:
+            x1 = self.x_scale(r*np.cos(theta))
+            x2 = self.y_scale(r*np.sin(theta))
+            label = str(radii[step]) + r' $R_\odot$'
+            ax.plot(x1, x2, linestyle=linestyles[step], color='w', label=label)
+            step += 1
         
     def plt_tom(self, e, ax):
         # Plot the tomogram
@@ -239,102 +225,12 @@ class Tomogram(Hist2D):
         
         vx_orbit, vy_orbit = self.plt_orbit(e)
         ax.plot(vx_orbit, vy_orbit, 'r', label='e='+str(e))
-    
-class Tomogram_Data (Tomogram):
-    # Produce the tomogram from the 2D histogram of velocities
-    def __init__(self, vx_array, vy_array):
-        super().__init__(vx_array, vy_array)
-        
-    def plt_Kep_r(self, ax):
-        # Plot circles of Keplerian velocity at particular physical radii
-        radii = np.array([0.2, 0.64, 1.2, 2]) # Radii in solar radii
-        v_radii = np.sqrt(G_cgs*WD_mass_cgs/(radii*R_sol_cgs))*cms_to_kms # Convert radius to kms
-        # Add circles to the tomogram
-        step = 0
-        linestyles = ['--', '-.', ':' , '-']
-        theta = np.linspace(0, 2*np.pi, 100)
-        for r in v_radii:
-            x1 = self.x_scale(r*np.cos(theta))
-            x2 = self.y_scale(r*np.sin(theta))
-            label = str(radii[step]) + r' $R_\odot$'
-            ax.plot(x1, x2, linestyle=linestyles[step], color='w', label=label)
-            step += 1
-        
-    def plot(self, e, ax):
-        self.plt_tom(e, ax)
         self.plt_Kep_r(ax)
-        ax.imshow(self.img)
+        ax.imshow(self.img)        
 
-class Tomogram_PNG (Tomogram):
-    # Produce tomogram from a PNG image
-    def __init__(self, vx_array, vy_array, filename):
-        self.tom_xran = 1700
-        self.tom_yran = self.tom_xran
-        self.vx_min = -850
-        self.vy_min = self.vx_min
-        self.img = mpimg.imread(filename)
-        # Establish plot limits (from image pixels)
-        self.xmin = -0.5
-        self.xmax = self.xmin + len(self.img[0])
-        self.ymax = self.xmin
-        self.ymin = self.ymax + len(self.img[:,0])
-        self.xran = self.xmax - self.xmin
-        self.yran = self.ymax - self.ymin
-        self.vx_per_pixel = self.tom_xran/self.xran
-        self.vy_per_pixel = self.tom_yran/self.yran
-        
-    def plot(self, e, ax):
-        self.plt_tom(e, ax)
-        plt.imshow(self.img)
-
-class ascii_file:
-    # A class for ascii files
-    def __init__(self, filename):
-        self.filename = filename
-        self.f = open(filename, 'r')
-        self.lines = self.f.readlines()
-        
-    def read_v(self):
-    # Read in the velocity data
-        vx_i = []
-        vy_i = []
-        column_number = 8 # Column with the velocity data
-        line_step = 0
-        for x in self.lines:
-            line_step += 1
-            if line_step > 14:
-                row = x.split()
-                vx_i.append(float(row[column_number-2]))
-                vy_i.append(float(row[column_number-1]))
-        print('Reading ', self.filename) # Status message
-        return vx_i, vy_i
-
-def read_ascii(file_list):
-    # Read ascii file for velocities
-    vx = []
-    vy = []
-    for filename in file_list:
-        data = ascii_file(filename)
-        vx_i, vy_i = data.read_v()
-        data.f.close()
-        vx.append(vx_i)
-        vy.append(vy_i)
-    vx = np.array(vx)
-    vy = np.array(vy)
-    return vx, vy
-
-def find_files(ascii_files, e, n_orbit):
-    # Sorts files by eccentricity of asteroid orbit
-    e_str = str(e)[2]
-    n_orbit_str = str(n_orbit)
-    print('Finding files for orbit',n_orbit_str,'at e=',e_str)
-    file_list = []
-    for f in file_list:
-        if f[-13] == e_str and f[-9:-7] == n_orbit_str:
-            file_list.append(f)
-    err_no_files(file_list) # Return an error if the file list is empty
-    return file_list
-
+'''
+Plotting functions
+'''
 def finalise_plot(fig, filename):
     # Save figure and show
     fig.tight_layout()
@@ -345,7 +241,7 @@ def finalise_plot(fig, filename):
 
 def plt_spec_single(angle):
     # Plot a single spectral line from a particular angle
-    vx, vy = read_ascii(args.files)
+    vx, vy = rd.read_ascii(args.files)
     spec = SpecLines(vx, vy)
     fig = plt.figure(1, figsize=[10,10])
     axs = fig.subplots()
@@ -355,8 +251,8 @@ def plt_spec_single(angle):
 
 def plt_tom_single():
     # Plot a single tomogram (matching SDSS J1228+1040)
-    vx, vy = read_ascii(args.files)
-    tom = Tomogram_Data(vx, vy)
+    vx, vy = rd.read_ascii(args.files)
+    tom = Tomogram(vx, vy)
     fig = plt.figure(1, figsize=[10,10])
     axs = fig.subplots()
     tom.plot(e, axs)
@@ -376,9 +272,9 @@ def plt_ecc_comp():
         n_orbit_step = 0
         for sub_ax in ax:
             n_orbit = n_orbit_array[n_orbit_step]
-            file_list = find_files(args.files, e, n_orbit)
-            vx, vy = read_ascii(file_list)
-            tom = Tomogram_Data(vx, vy)
+            file_list = rd.find_files(args.files, e, n_orbit)
+            vx, vy = rd.read_ascii(file_list)
+            tom = Tomogram(vx, vy)
             tom.plot(e, sub_ax)
             n_orbit_step += 1
         e_step += 1
@@ -392,7 +288,7 @@ def plt_spec_angles(angle_diff, spec, ax):
     angle_y_deg = np.linspace(0, 360, nsteps)
     angle_step = 0
     for sub_ax in ax:
-        spec.plt_angle(angle_y[angle_step], sub_ax)
+        spec.plt_angle(angle_y_deg[angle_step], sub_ax)
         angle_step +=1
     
 def plt_spec_comp():
@@ -403,8 +299,8 @@ def plt_spec_comp():
     step = 0
     for ax in axs.flat:
         e = e_array[step]
-        file_list = find_files(args.files, e)
-        vx, vy = read_ascii(file_list)
+        file_list = rd.find_files(args.files, e)
+        vx, vy = rd.read_ascii(file_list)
         Ca_II = SpecLines(vx, vy)
         plt_spec_angles(90, Ca_II, ax)
         step += 1
@@ -412,21 +308,10 @@ def plt_spec_comp():
     plt.ylabel(r'Particles ($\times 10^5$)')
     filename = 'spec_line_comp.png'
     finalise_plot(fig, filename)
-
-def plt_tom_png():
-    # Plot tomogram with data input as a PNG screenshot
-    filename = '../Manser_2016_tomogram.PNG'
-    fig = plt.figure(1, figsize=[10,10])
-    axs = fig.subplots()
-    tom = Tomogram_PNG(1, 1, filename)
-    tom.plot(e, axs)
-    plt.legend(fancybox=True, framealpha=0.4, loc='upper right')
-    save_f_name = 'tomogram_Manser_2016.png'
-    finalise_plot(fig, save_f_name)
     
 def plt_var():
     # Reproduce variability of Ca II spectral lines
-    vx, vy = read_ascii(args.files)
+    vx, vy = rd.read_ascii(args.files)
     file_no = len(args.files)
     shift = []
     for n in range(len(vx)):
@@ -437,7 +322,6 @@ def plt_var():
 
     # Plot the spectrum variability
     fig = plt.figure(1, figsize=[10,10])
-    axs = fig.subplots()
     time = np.linspace(0, 2, num=file_no)
     plt.plot(time, shift, marker='o', linestyle='None')
     plt.xlabel('Orbital Phase')
@@ -445,44 +329,11 @@ def plt_var():
     filename = 'var_90-99.pdf'
     finalise_plot(fig, filename)
 
-def exp_hist2D():
-    vx, vy = read_ascii(args.files)
-    hist2D = Hist2D(vx, vy)
-    img = hist2D.plt_hist2D()
-    filename = 'hist2D_WD_14_90-99.txt'
-    print('Writing 2D histogram to',filename)
-    np.save(filename, img)
-
-def Gauss(x, a, x0, sigma):
-    return a* np.exp(-(x - x0)**2/(2*sigma**2))
-
-def get_model(alpha, semia, e):
-    # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
-    semia_cgs = semia*R_sol_cgs
-    vx, vy = integrate_orbit(semia_cgs, e)
-    v_mag = np.sqrt(vx**2 + vy**2)
-    v_angle = np.arctan2(vy, vx)
-    return np.interp(alpha, v_angle, v_mag, period=2*np.pi)
-
-def cart2polar(x, y):
-    r = np.sqrt(x**2 + y**2)
-    theta = np.arctan2(y, x)
-    return x, y
-
-def reproject_image_into_polar(data, origin=None):
-    ny, nx = data.shape[:2]
-    if origin is None:
-        origin = (nx//2, ny//2)
-
-    x, y = index_coords(data, origin=origin)
-
 def plt_hist2D_polar():
     # Plot 2D histogram of vx, vy in polar coordinates and find radial maxima
-    vx, vy = read_ascii(args.files)
+    vx, vy = rd.read_ascii(args.files)
     data = Hist(vx, vy)
     img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins, range=[[-np.pi, np.pi],[0, 1500]]) # Plot 2D histogram
-    print(sample)
-    print(sample)
     #plt.show()
     plt.close()
 
@@ -499,13 +350,13 @@ def plt_hist2D_polar():
     v_max_err = np.array([])
     for n in range(len(img)):
         sigma = np.sqrt(np.sum(img[n,:]*(v_mag - v_max[n])**2)/np.sum(img[n,:]))
-        popt, pcov = curve_fit(Gauss, v_mag, img[n,:], p0=[hist_max[n],v_max[n],sigma])
+        popt, pcov = curve_fit(mc_util.Gauss, v_mag, img[n,:], p0=[hist_max[n],v_max[n],sigma])
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
         '''
         # Plot the Gaussian for a particular alpha with index n
         if n == 10:
             plt.plot(v_mag, img[n,:], label='data')
-            plt.plot(v_mag, Gauss(v_mag, *popt), label='Gaussian')
+            plt.plot(v_mag, mc_util.Gauss(v_mag, *popt), label='Gaussian')
             plt.legend()
             plt.show()
         '''
@@ -515,30 +366,11 @@ def plt_hist2D_polar():
     #plt.show()
     return alpha, v_max, v_max_err
 
-def log_likelihood(sample_params, alpha, v_mag, v_mag_err):
-    semia, e, log_f = sample_params
-    model = get_model(alpha, semia, e)
-    sigma2 = v_mag_err**2 + model**2 * np.exp(2*log_f)
-    return -0.5*np.sum((v_mag - model)**2/sigma2 + np.log(sigma2))
-
-def log_prior(sample_params):
-    semia, e, log_f = sample_params
-    if 0.1 < semia < 10.0 and 0 < e < 1.0 and -15.0 < log_f < 1.0:
-        return 0.0
-    return -np.inf
-
-def log_probability(sample_params, alpha, v_mag, v_mag_err):
-    lp = log_prior(sample_params)
-    if not np.isfinite(lp):
-        return -np.inf
-    return lp + log_likelihood(sample_params, alpha, v_mag, v_mag_err)
-
 def get_ellipse_parameters():
     # Get values for the parameters of the ellipse
-    outpath = './emcee_plots/'
     alpha, v_mag, v_mag_err = plt_hist2D_polar() # Data
     
-    nll = lambda *args: -log_likelihood(*args) # Log likelihood function
+    nll = lambda *args: -mc_util.log_likelihood(*args) # Log likelihood function
     initial_guess = np.array([0.73, 0.54, 0.0]) # Initial guess for parameters
     bnds = ((0.1, None), (0, 0.999), (None, None)) # Bounds on the parameters (semia, e, logf)
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
@@ -550,7 +382,7 @@ def get_ellipse_parameters():
 
     pos = params.x + 1e-4*np.random.randn(32,3)
     nwalkers, ndim = pos.shape
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(alpha, v_mag, v_mag_err))
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, mc_util.log_probability, args=(alpha, v_mag, v_mag_err))
     sampler.run_mcmc(pos, 5000, progress=True);
     
     fig, axes = plt.subplots(3, figsize=(10,7), sharex=True)
@@ -563,7 +395,6 @@ def get_ellipse_parameters():
         ax.set_ylabel(labels[i])
         #ax.yaxis.set_label_coords(-0.1, 0.5)
     axes[-1].set_xlabel("step number")
-    plt.savefig(outpath + 'emcee_chain_model.png')
     plt.show()
 
     tau = sampler.get_autocorr_time()
@@ -573,37 +404,27 @@ def get_ellipse_parameters():
     print(flat_samples.shape)
 
     fig = corner.corner(flat_samples, labels=labels);
-    plt.savefig(outpath + 'corner_plot_model.png')
     plt.show()
     
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 7), sharey=True)
     angle = np.linspace(-np.pi, np.pi)
     inds = np.random.randint(len(flat_samples), size=100)
     for ind in inds:
         sample = flat_samples[ind]
-        ax2.plot(angle, get_model(angle, sample[0], sample[1]), "C1", alpha=0.1)
-    ax1.errorbar(alpha, v_mag, yerr=v_mag_err, fmt=".k", capsize=0)
+        plt.plot(angle, np.dot(np.vander(angle, 2), sample[:2]), "C1", alpha=0.1)
+    plt.errorbar(alpha, v_mag, yerr=v_mag_err, fmt=".k", capsize=0)
     plt.legend(fontsize=14)
-    plt.savefig(outpath + 'comp_to_data_model.png')
     plt.show()
-
-'''
-hdulist_map = fits.open('map10000_2.fits')
-plt.imshow(hdulist_map[1].data)
-plt.show()
-'''
 
 '''
 Commands
 - All angles should be in degrees
 '''
 # Any angles should be in radians
-plt_spec_single(90)
+#plt_spec_single(90)
 #plt_tom_single()
 #plt_tom_png()
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
-#exp_hist2D()
 #plt_hist2D_polar()
-#get_ellipse_parameters()
+get_ellipse_parameters()
