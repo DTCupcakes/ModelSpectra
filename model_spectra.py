@@ -14,8 +14,8 @@ parser.add_argument('files',nargs='+',help='files with the appropriate particle 
 args = parser.parse_args()
 
 # Set the font (size) for plots
-font = {'size' : 28}
-matplotlib.rc('font', **font)
+#font = {'size' : 28}
+#matplotlib.rc('font', **font)
 
 '''
 Constants and conversions
@@ -455,13 +455,21 @@ def exp_hist2D():
 def Gauss(x, a, x0, sigma):
     return a* np.exp(-(x - x0)**2/(2*sigma**2))
 
+def get_model(alpha, semia, e):
+    # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
+    semia_cgs = semia*R_sol_cgs
+    vx, vy = integrate_orbit(semia_cgs, e)
+    v_mag = np.sqrt(vx**2 + vy**2)
+    v_angle = np.arctan2(vy, vx)
+    return np.interp(alpha, v_angle, v_mag, period=2*np.pi)
+
 def plt_hist2D_polar():
     # Plot 2D histogram of vx, vy in polar coordinates and find radial maxima
     vx, vy = read_ascii(args.files)
     data = Hist(vx, vy)
     img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins, range=[[-np.pi, np.pi],[0, 1500]]) # Plot 2D histogram
     #plt.show()
-    #plt.close()
+    plt.close()
 
     alpha = np.array([])
     v_mag = np.array([])
@@ -469,35 +477,28 @@ def plt_hist2D_polar():
         alpha = np.append(alpha, 0.5*(v_angle_bins[n]+v_angle_bins[n+1])) # Angle list
         v_mag = np.append(v_mag, 0.5*(v_mag_bins[n]+v_mag_bins[n+1])) # Velocity magnitude list
     
-    v_max = np.amax(img, axis=1) # Maximum histogram value for each alpha
-    v_max_arg = np.argmax(img, axis=1) # Index of max histogram value for each alpha
-    v_mag_max = v_mag_bins[-1]*v_max_arg/len(img) # v_mag value of max histogram value
-    half_max = 0.5*v_max # Half of max histogram value
+    hist_max = np.amax(img, axis=1) # Maximum histogram value for each alpha
+    hist_max_arg = np.argmax(img, axis=1) # Index of max hist val for each alpha
+    v_max = v_mag_bins[-1]*hist_max_arg/len(img) # v_mag value of max hist val
 
-    v_mag_err = np.array([])
+    v_max_err = np.array([])
     for n in range(len(img)):
-        sigma = np.sqrt(np.sum(img[n,:]*(v_mag - v_mag_max[n])**2)/np.sum(img[n,:]))
-        popt, pcov = curve_fit(Gauss, v_mag, img[n,:], p0=[v_max[n], v_mag_max[n], sigma])
-        v_mag_err = np.append(v_mag_err, sigma) # Uncertainty in v_mag_max
+        sigma = np.sqrt(np.sum(img[n,:]*(v_mag - v_max[n])**2)/np.sum(img[n,:]))
+        popt, pcov = curve_fit(Gauss, v_mag, img[n,:], p0=[hist_max[n],v_max[n],sigma])
+        v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
         '''
+        # Plot the Gaussian for a particular alpha with index n
         if n == 10:
             plt.plot(v_mag, img[n,:], label='data')
             plt.plot(v_mag, Gauss(v_mag, *popt), label='Gaussian')
             plt.legend()
             plt.show()
         '''
-
-    plt.errorbar(alpha, v_mag_max, yerr=v_mag_err, label='plot err')
-    plt.legend()
-    plt.show()
-    return alpha, v_mag_max, v_mag_err
-
-def get_model(alpha, semia, e):
-    # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
-    vx, vy = integrate_orbit(semia, e)
-    v_mag = np.sqrt(vx**2 + vy**2)
-    v_angle = np.arctan2(vy,vx)
-    return np.interp(alpha, v_angle, v_mag, period=2*np.pi)
+    # Plot v_max on top of the histogram    
+    #plt.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
+    #plt.legend()
+    #plt.show()
+    return alpha, v_max, v_max_err
 
 def log_likelihood(sample_params, alpha, v_mag, v_mag_err):
     semia, e, log_f = sample_params
@@ -507,7 +508,7 @@ def log_likelihood(sample_params, alpha, v_mag, v_mag_err):
 
 def log_prior(sample_params):
     semia, e, log_f = sample_params
-    if 0.1 < semia < 2.0 and 0.0 < e < 1.0 and -10.0 < log_f < 1.0:
+    if 0.1 < semia < 10.0 and 0 < e < 1.0 and -15.0 < log_f < 1.0:
         return 0.0
     return -np.inf
 
@@ -520,8 +521,9 @@ def log_probability(sample_params, alpha, v_mag, v_mag_err):
 def get_ellipse_parameters():
     # Get values for the parameters of the ellipse
     alpha, v_mag, v_mag_err = plt_hist2D_polar() # Data
+    
     nll = lambda *args: -log_likelihood(*args) # Log likelihood function
-    initial_guess = np.array([1.0, 0.5, 0.0]) # Initial guess for parameters
+    initial_guess = np.array([0.73, 0.54, 0.0]) # Initial guess for parameters
     bnds = ((0.1, None), (0, 0.999), (None, None)) # Bounds on the parameters (semia, e, logf)
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
     semia, e, log_f = params.x
@@ -533,7 +535,7 @@ def get_ellipse_parameters():
     pos = params.x + 1e-4*np.random.randn(32,3)
     nwalkers, ndim = pos.shape
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_probability, args=(alpha, v_mag, v_mag_err))
-    sampler.run_mcmc(pos, 5000);
+    sampler.run_mcmc(pos, 5000, progress=True);
     
     fig, axes = plt.subplots(3, figsize=(10,7), sharex=True)
     samples = sampler.get_chain()
@@ -543,7 +545,7 @@ def get_ellipse_parameters():
         ax.plot(samples[:,:,i], "k", alpha=0.3)
         ax.set_xlim(0, len(samples))
         ax.set_ylabel(labels[i])
-        ax.yaxis.set_label_coords(-0.1, 0.5)
+        #ax.yaxis.set_label_coords(-0.1, 0.5)
     axes[-1].set_xlabel("step number")
     plt.show()
 
@@ -553,7 +555,17 @@ def get_ellipse_parameters():
     flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
     print(flat_samples.shape)
 
-    #fig = corner.corner(flat_samples, labels=labels);
+    fig = corner.corner(flat_samples, labels=labels);
+    plt.show()
+    
+    angle = np.linspace(-np.pi, np.pi)
+    inds = np.random.randint(len(flat_samples), size=100)
+    for ind in inds:
+        sample = flat_samples[ind]
+        plt.plot(angle, np.dot(np.vander(angle, 2), sample[:2]), "C1", alpha=0.1)
+    plt.errorbar(alpha, v_mag, yerr=v_mag_err, fmt=".k", capsize=0)
+    plt.legend(fontsize=14)
+    plt.show()
 
 '''
 Commands
