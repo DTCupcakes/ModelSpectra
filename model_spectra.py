@@ -7,6 +7,7 @@ from scipy import signal
 from scipy.optimize import minimize, curve_fit
 import emcee
 import corner
+import astropy.io.fits as fits
 
 # Get filenames from command line
 parser = argparse.ArgumentParser(description='Some files.',formatter_class=argparse.RawTextHelpFormatter)
@@ -463,11 +464,25 @@ def get_model(alpha, semia, e):
     v_angle = np.arctan2(vy, vx)
     return np.interp(alpha, v_angle, v_mag, period=2*np.pi)
 
+def cart2polar(x, y):
+    r = np.sqrt(x**2 + y**2)
+    theta = np.arctan2(y, x)
+    return x, y
+
+def reproject_image_into_polar(data, origin=None):
+    ny, nx = data.shape[:2]
+    if origin is None:
+        origin = (nx//2, ny//2)
+
+    x, y = index_coords(data, origin=origin)
+
 def plt_hist2D_polar():
     # Plot 2D histogram of vx, vy in polar coordinates and find radial maxima
     vx, vy = read_ascii(args.files)
     data = Hist(vx, vy)
     img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins, range=[[-np.pi, np.pi],[0, 1500]]) # Plot 2D histogram
+    print(sample)
+    print(sample)
     #plt.show()
     plt.close()
 
@@ -520,6 +535,7 @@ def log_probability(sample_params, alpha, v_mag, v_mag_err):
 
 def get_ellipse_parameters():
     # Get values for the parameters of the ellipse
+    outpath = './emcee_plots/'
     alpha, v_mag, v_mag_err = plt_hist2D_polar() # Data
     
     nll = lambda *args: -log_likelihood(*args) # Log likelihood function
@@ -547,6 +563,7 @@ def get_ellipse_parameters():
         ax.set_ylabel(labels[i])
         #ax.yaxis.set_label_coords(-0.1, 0.5)
     axes[-1].set_xlabel("step number")
+    plt.savefig(outpath + 'emcee_chain_model.png')
     plt.show()
 
     tau = sampler.get_autocorr_time()
@@ -556,23 +573,32 @@ def get_ellipse_parameters():
     print(flat_samples.shape)
 
     fig = corner.corner(flat_samples, labels=labels);
+    plt.savefig(outpath + 'corner_plot_model.png')
     plt.show()
     
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 7), sharey=True)
     angle = np.linspace(-np.pi, np.pi)
     inds = np.random.randint(len(flat_samples), size=100)
     for ind in inds:
         sample = flat_samples[ind]
-        plt.plot(angle, np.dot(np.vander(angle, 2), sample[:2]), "C1", alpha=0.1)
-    plt.errorbar(alpha, v_mag, yerr=v_mag_err, fmt=".k", capsize=0)
+        ax2.plot(angle, get_model(angle, sample[0], sample[1]), "C1", alpha=0.1)
+    ax1.errorbar(alpha, v_mag, yerr=v_mag_err, fmt=".k", capsize=0)
     plt.legend(fontsize=14)
+    plt.savefig(outpath + 'comp_to_data_model.png')
     plt.show()
+
+'''
+hdulist_map = fits.open('map10000_2.fits')
+plt.imshow(hdulist_map[1].data)
+plt.show()
+'''
 
 '''
 Commands
 - All angles should be in degrees
 '''
 # Any angles should be in radians
-#plt_spec_single(90)
+plt_spec_single(90)
 #plt_tom_single()
 #plt_tom_png()
 #plt_ecc_comp()
@@ -580,4 +606,4 @@ Commands
 #plt_var()
 #exp_hist2D()
 #plt_hist2D_polar()
-get_ellipse_parameters()
+#get_ellipse_parameters()
