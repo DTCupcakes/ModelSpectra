@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-import orbit_utils as orb
+import utils.orbit_utils as orb
 
 def Gauss(x, a, x0, sigma):
     return a* np.exp(-(x - x0)**2/(2*sigma**2))

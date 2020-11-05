@@ -19,7 +19,8 @@ parser.add_argument('files',nargs='+',help='files with the appropriate particle 
 args = parser.parse_args()
 
 # Import observational data from Manser et al. (2016)
-hdulist_map = fits.open('map10000_2.fits')
+inpath = './obs_data/'
+hdulist_map = fits.open(inpath + 'map10000_2.fits')
 velocity_data = hdulist_map[1].data
 #plt.imshow(velocity_data)
 #plt.show()
@@ -27,6 +28,10 @@ velocity_data = hdulist_map[1].data
 # Set the font (size) for plots
 #font = {'size' : 28}
 #matplotlib.rc('font', **font)
+
+outpath = './plots/'
+emcee_outpath = './emcee_plots/'
+str_n = '90-99'
 
 '''
 Constants and conversions
@@ -37,11 +42,8 @@ WD_mass = orb.WD_mass
 cms_to_kms = orb.cms_to_kms
 
 semia = 0.73*R_sol # Semi-major axis in cgs units
-
-Manser_2016_angle = 95
-
 e = 0.54 # Eccentricity
-str_n = '90-99'
+Manser_2016_angle = 95
 
 '''
 Functions to print error messages
@@ -206,7 +208,7 @@ class Tomogram(Hist2D):
             ax.plot(x1, x2, linestyle=linestyles[step], color='w', label=label)
             step += 1
         
-    def plt_tom(self, e, ax):
+    def plot(self, e, ax):
         # Plot the tomogram
         labels = np.arange(-1500, 1501, 250)
         self.x_locs = self.x_scale(labels)
@@ -235,7 +237,7 @@ def finalise_plot(fig, filename):
     # Save figure and show
     fig.tight_layout()
     print('Writing to', filename) # Status message
-    plt.savefig(filename)
+    plt.savefig(outpath + filename)
     plt.show()
     plt.close()
 
@@ -421,10 +423,9 @@ Commands
 '''
 # Any angles should be in radians
 #plt_spec_single(90)
-#plt_tom_single()
-#plt_tom_png()
+plt_tom_single()
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
 #plt_hist2D_polar()
-get_ellipse_parameters()
+#get_ellipse_parameters()
