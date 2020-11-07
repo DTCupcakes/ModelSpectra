@@ -10,7 +10,7 @@ import corner
 
 import utils.read_utils as rd
 import utils.orbit_utils as orb
-import utils.img_utils as img
+import utils.img_utils as img_util
 import utils.emcee_utils as mc_util 
 
 # Get filenames from command line
@@ -237,7 +237,7 @@ def finalise_plot(fig, filename):
     # Save figure and show
     fig.tight_layout()
     print('Writing to', filename) # Status message
-    plt.savefig(outpath + filename)
+    #plt.savefig(outpath + filename)
     plt.show()
     plt.close()
 
@@ -336,60 +336,66 @@ def plt_hist2D_polar():
     vx, vy = rd.read_ascii(args.files)
     data = Hist(vx, vy)
     img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins, range=[[-np.pi, np.pi],[0, 1500]]) # Plot 2D histogram
-    #plt.show()
-    plt.close()
-
+    
     alpha = np.array([])
     v_mag = np.array([])
     for n in range(len(v_angle_bins)-1):
         alpha = np.append(alpha, 0.5*(v_angle_bins[n]+v_angle_bins[n+1])) # Angle list
         v_mag = np.append(v_mag, 0.5*(v_mag_bins[n]+v_mag_bins[n+1])) # Velocity magnitude list
-    
+    return img, alpha, v_mag
+   
+def find_ellipse(obs_data=False):
+    if obs_data == True: # Determines if image is from simulated or observational data
+        img, v_mag, alpha = img_util.reproject_image_into_polar(velocity_data)
+        #plt.imshow(img)
+    else:
+        img, alpha, v_mag = plt_hist2D_polar()
+
     hist_max = np.amax(img, axis=1) # Maximum histogram value for each alpha
     hist_max_arg = np.argmax(img, axis=1) # Index of max hist val for each alpha
-    v_max = v_mag_bins[-1]*hist_max_arg/len(img) # v_mag value of max hist val
+    v_max = v_mag[-1]*hist_max_arg/len(img) # v_mag value of max hist val
 
     v_max_err = np.array([])
     for n in range(len(img)):
         sigma = np.sqrt(np.sum(img[n,:]*(v_mag - v_max[n])**2)/np.sum(img[n,:]))
         popt, pcov = curve_fit(mc_util.Gauss, v_mag, img[n,:], p0=[hist_max[n],v_max[n],sigma])
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
-        '''
         # Plot the Gaussian for a particular alpha with index n
-        if n == 10:
-            plt.plot(v_mag, img[n,:], label='data')
+        '''if n % 100 == 0:
+            plt.plot(v_mag, img[n,:], label=str(n))
             plt.plot(v_mag, mc_util.Gauss(v_mag, *popt), label='Gaussian')
             plt.legend()
-            plt.show()
-        '''
-    # Plot v_max on top of the histogram    
+            plt.savefig('obs_data_angle_'+str(n)+'.png')
+            plt.show()'''
+
+    # Plot v_max on top of the histogram
+    plt.imshow(img)
     #plt.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
-    #plt.legend()
-    #plt.show()
+    plt.legend()
+    plt.show()
     return alpha, v_max, v_max_err
 
-def get_ellipse_parameters():
+def get_ellipse_parameters(obs_data=False):
     # Get values for the parameters of the ellipse
-    alpha, v_mag, v_mag_err = plt_hist2D_polar() # Data
+    alpha, v_mag, v_mag_err = find_ellipse(obs_data=obs_data) # Data
     
     nll = lambda *args: -mc_util.log_likelihood(*args) # Log likelihood function
-    initial_guess = np.array([0.73, 0.54, 0.0]) # Initial guess for parameters
-    bnds = ((0.1, None), (0, 0.999), (None, None)) # Bounds on the parameters (semia, e, logf)
+    initial_guess = np.array([0.73, 0.54]) # Initial guess for parameters
+    bnds = ((0.1, None), (0, 0.999)) # Bounds on the parameters (semia, e, logf)
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
-    semia, e, log_f = params.x
+    semia, e = params.x
     print("Maximum likelihood estimates:")
     print("semia = {0:.3f}".format(semia))
     print("e = {0:.3f}".format(e))
-    print("f = {0:.3f}".format(np.exp(log_f)))
 
-    pos = params.x + 1e-4*np.random.randn(32,3)
+    pos = params.x + 1e-4*np.random.randn(32,2)
     nwalkers, ndim = pos.shape
     sampler = emcee.EnsembleSampler(nwalkers, ndim, mc_util.log_probability, args=(alpha, v_mag, v_mag_err))
     sampler.run_mcmc(pos, 5000, progress=True);
     
-    fig, axes = plt.subplots(3, figsize=(10,7), sharex=True)
+    fig, axes = plt.subplots(2, figsize=(10,7), sharex=True)
     samples = sampler.get_chain()
-    labels = ["semia", "e", "log(f)"]
+    labels = ["semia", "e"]
     for i in range(ndim):
         ax = axes[i]
         ax.plot(samples[:,:,i], "k", alpha=0.3)
@@ -420,12 +426,13 @@ def get_ellipse_parameters():
 '''
 Commands
 - All angles should be in degrees
+- obs_data=True if using observational data (False if not)
 '''
-# Any angles should be in radians
+obs_data = False
 #plt_spec_single(90)
-plt_tom_single()
+#plt_tom_single()
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
-#plt_hist2D_polar()
-#get_ellipse_parameters()
+#find_ellipse(obs_data=obs_data)
+get_ellipse_parameters(obs_data=obs_data)
