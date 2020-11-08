@@ -4,6 +4,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.optimize import minimize, curve_fit
+from scipy.stats import shapiro
 import astropy.io.fits as fits
 import emcee
 import corner
@@ -336,7 +337,8 @@ def plt_hist2D_polar():
     vx, vy = rd.read_ascii(args.files)
     data = Hist(vx, vy)
     img, v_angle_bins, v_mag_bins, mesh = plt.hist2d(data.v_angle, data.v_mag, bins=data.n_bins, range=[[-np.pi, np.pi],[0, 1500]]) # Plot 2D histogram
-    
+    plt.close()
+
     alpha = np.array([])
     v_mag = np.array([])
     for n in range(len(v_angle_bins)-1):
@@ -347,30 +349,31 @@ def plt_hist2D_polar():
 def find_ellipse(obs_data=False):
     if obs_data == True: # Determines if image is from simulated or observational data
         img, v_mag, alpha = img_util.reproject_image_into_polar(velocity_data)
-        #plt.imshow(img)
+        img = np.transpose(img)
     else:
         img, alpha, v_mag = plt_hist2D_polar()
-
-    hist_max = np.amax(img, axis=1) # Maximum histogram value for each alpha
-    hist_max_arg = np.argmax(img, axis=1) # Index of max hist val for each alpha
-    v_max = v_mag[-1]*hist_max_arg/len(img) # v_mag value of max hist val
-
+    
+    v_max = np.array([])
     v_max_err = np.array([])
     for n in range(len(img)):
-        sigma = np.sqrt(np.sum(img[n,:]*(v_mag - v_max[n])**2)/np.sum(img[n,:]))
-        popt, pcov = curve_fit(mc_util.Gauss, v_mag, img[n,:], p0=[hist_max[n],v_max[n],sigma])
+        #if n % 100 == 0:
+            #img_util.plt_Gaussian_n(n, v_mag, img) # Plot Gaussian
+        hist_max = np.amax(img[n,:]) # Maximum histogram value
+        hist_max_arg = np.argmax(img[n,:]) # Index of max histogram value
+        v_max_n = v_mag[-1]*hist_max_arg/len(img[n,:]) # v_mag value of max hist val
+        v_max = np.append(v_max, v_max_n)
+        mean = np.sum(v_mag*img[n,:])/np.sum(img[n,:])
+        sigma = np.sqrt(np.sum(img[n,:]*(v_mag - mean)**2)/np.sum(img[n,:]))
+        popt, pcov = curve_fit(mc_util.Gauss, v_mag, img[n,:], p0=[hist_max, mean, sigma])
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
-        # Plot the Gaussian for a particular alpha with index n
-        '''if n % 100 == 0:
-            plt.plot(v_mag, img[n,:], label=str(n))
-            plt.plot(v_mag, mc_util.Gauss(v_mag, *popt), label='Gaussian')
-            plt.legend()
-            plt.savefig('obs_data_angle_'+str(n)+'.png')
-            plt.show()'''
 
     # Plot v_max on top of the histogram
+    if obs_data == True:
+        img = np.transpose(img)
     plt.imshow(img)
-    #plt.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
+    if obs_data == True:
+        plt.ylim(np.flip(plt.ylim()))
+    plt.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
     plt.legend()
     plt.show()
     return alpha, v_max, v_max_err
@@ -428,7 +431,7 @@ Commands
 - All angles should be in degrees
 - obs_data=True if using observational data (False if not)
 '''
-obs_data = False
+obs_data = True
 #plt_spec_single(90)
 #plt_tom_single()
 #plt_ecc_comp()

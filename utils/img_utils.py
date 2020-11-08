@@ -1,6 +1,10 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.ndimage import map_coordinates
 
+'''
+Convert images to polar coordinates
+'''
 def index_coords(data, origin=None):
     """Creates x & y coords for the indicies in a numpy array "data".
     "origin" defaults to the center of the image. Specify origin=(0,0)
@@ -52,3 +56,14 @@ def reproject_image_into_polar(data, origin=None):
     zi = map_coordinates(data, coords, order=1)
     output = zi.reshape((nx, ny))
     return output, r_i, theta_i
+
+'''
+Find and plot histogram Gaussians
+'''
+def plt_Gaussian_n(n, v_mag, img):
+    plt.plot(v_mag, img[n,:], label=str(n))
+    #plt.plot(v_mag, mc_util.Gauss(v_mag, *popt), label='Gaussian')
+    plt.legend()
+    #plt.savefig('obs_data_angle_'+str(n)+'.png')
+    plt.show()
+
