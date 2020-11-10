@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.optimize import minimize, curve_fit
 from scipy.stats import shapiro
-import astropy.io.fits as fits
 import emcee
 import corner
 
@@ -20,11 +19,10 @@ parser.add_argument('files',nargs='+',help='files with the appropriate particle 
 args = parser.parse_args()
 
 # Import observational data from Manser et al. (2016)
-inpath = './obs_data/'
-hdulist_map = fits.open(inpath + 'map10000_2.fits')
-velocity_data = hdulist_map[1].data
-#plt.imshow(velocity_data)
-#plt.show()
+obs_filename = 'map10000_2.fits'
+scale_per_pixel = 5 #km/s per pixel
+obs_data = rd.obs_2Dhist(filename=obs_filename, scale_per_pixel=scale_per_pixel)
+obs_data.plt_cart()
 
 # Set the font (size) for plots
 #font = {'size' : 28}
@@ -438,4 +436,4 @@ obs_data = True
 #plt_spec_comp()
 #plt_var()
 #find_ellipse(obs_data=obs_data)
-get_ellipse_parameters(obs_data=obs_data)
+#get_ellipse_parameters(obs_data=obs_data)

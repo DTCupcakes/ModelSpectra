@@ -1,4 +1,6 @@
 import numpy as np
+import astropy.io.fits as fits
+import matplotlib.pyplot as plt
 
 '''
 Functions to print error messages
@@ -8,7 +10,7 @@ def err_no_files(file_array):
         print("File array is empty.")
 
 '''
-Classes and functions to read files
+Classes for simulated and observational data
 '''
 class ascii_file:
     # A class for ascii files
@@ -32,6 +34,29 @@ class ascii_file:
         print('Reading ', self.filename) # Status message
         return vx_i, vy_i
 
+class obs_2Dhist:
+    # Read in a 2D histogram of observational data
+    def __init__(self, filename, scale_per_pixel):
+        # scale_per_pixel -> Velocity per pixel (in km/s)
+        inpath = './obs_data/'
+        hdulist_map = fits.open(inpath + filename)
+        v_data = hdulist_map[1].data
+        self.v_data = v_data
+        origin = np.array([len(v_data)/2, len(v_data[0])/2])
+        self.vx = np.linspace(-len(v_data)/2, len(v_data)/2, len(v_data) + 1)*scale_per_pixel
+        self.vy = np.linspace(len(v_data[0])/2, -len(v_data[0])/2, len(v_data) + 1)*scale_per_pixel
+
+    def plt_cart(self):
+        # Plot the histogram data in Cartesian coordinates
+        fig, axs = plt.subplots(1, figsize=(10, 10))
+        axs.pcolormesh(self.vx, self.vy, self.v_data)
+        axs.set_aspect(aspect=1)
+        plt.show()
+
+
+'''
+Functions for reading and selecting files
+'''
 def read_ascii(file_list):
     # Read ascii file for velocities
     vx = []
