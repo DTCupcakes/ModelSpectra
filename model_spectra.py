@@ -159,7 +159,9 @@ class Hist2D (Hist):
     def plt_hist2d_polar(self):
         alpha = self.v_angle
         v_mag = self.v_mag
-
+        img, self.alpha_bins, self.v_mag_bins, mesh = plt.hist2d(alpha, v_mag, bins=self.n_bins, range=self.v_range)
+        plt.close()
+        return img
     
 class Tomogram(Hist2D):
     def __init__(self, vx_array, vy_array):
@@ -233,7 +235,12 @@ class Tomogram(Hist2D):
         vx_orbit, vy_orbit = self.plt_orbit(e)
         ax.plot(vx_orbit, vy_orbit, 'r', label='e='+str(e))
         self.plt_Kep_r(ax)
-        ax.imshow(self.img)        
+        ax.imshow(self.img)
+
+class Tomogram_Polar(Hist2D):
+    def __init__(self, vx_array, vy_array):
+        super().__inint__(vx_array, vy_array)
+        self.img = self.plt_hist2d_polar()
 
 '''
 Plotting functions
