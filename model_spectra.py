@@ -389,29 +389,30 @@ def find_ellipse(obs=False):
     plt.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
     plt.legend()
     plt.show()
-    return alpha, v_max, v_max_err
+    return alpha, v_max, v_max_err, img, alpha_bins, v_mag_bins
 
 def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     # Get values for the parameters of the ellipse
     nll = lambda *args: -mc_util.log_likelihood(*args) # Log likelihood function
-    initial_guess = np.array([0.73, 0.54]) # Initial guess for parameters
-    bnds = ((0.1, None), (0, 0.999)) # Bounds on the parameters (semia, e, logf)
+    initial_guess = np.array([0.73, 0.54, np.pi]) # Initial guess for parameters
+    bnds = ((0, 10),(0, 0.999),(0, 2*np.pi)) # Bounds on the parameters
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
-    semia, e = params.x
+    semia, e, phase = params.x
     print("Maximum likelihood estimates:")
     print("semia = {0:.3f}".format(semia))
     print("e = {0:.3f}".format(e))
+    print("phase = {0:.3f}".format(phase))
     return params
 
 def get_ellipse_uncertainties(params, alpha, v_max, v_max_err):
-    pos = params.x + 1e-4*np.random.randn(32,2)
+    pos = params.x + 1e-4*np.random.randn(32,3)
     nwalkers, ndim = pos.shape
     sampler = emcee.EnsembleSampler(nwalkers, ndim, mc_util.log_probability, args=(alpha, v_mag, v_mag_err))
     sampler.run_mcmc(pos, 5000, progress=True);
     
-    fig, axes = plt.subplots(2, figsize=(10,7), sharex=True)
+    fig, axes = plt.subplots(3, figsize=(10,7), sharex=True)
     samples = sampler.get_chain()
-    labels = ["semia", "e"]
+    labels = ["semia", "e", "phase"]
     for i in range(ndim):
         ax = axes[i]
         ax.plot(samples[:,:,i], "k", alpha=0.3)
@@ -440,7 +441,7 @@ def get_ellipse_uncertainties(params, alpha, v_max, v_max_err):
     plt.show()
 
 def plt_ellipse_params(params):
-    semia, e = params.x
+    semia, e, phase = params.x
     semia = semia*R_sol
     fig, axs = plt.subplots(1, figsize=(10, 10))
     axs.pcolormesh(obs_data.vx, obs_data.vy, obs_data.v_data)
@@ -461,7 +462,17 @@ obs = True
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
-alpha, v_mag, v_mag_err = find_ellipse(obs=obs)
+alpha, v_mag, v_mag_err, img, alpha_bins, v_mag_bins = find_ellipse(obs=obs)
 params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
 plt_ellipse_params(params)
+plt.pcolormesh(alpha_bins, v_mag_bins, img)
+vx_n, vy_n = orb.integrate_orbit(0.73*R_sol, 0.54)
+v_mag_n, alpha_n = img_util.cart2polar(vx_n, vy_n)
+alpha_n = alpha_n + np.pi
+inds = alpha_n.argsort()
+v_mag_n = v_mag_n[inds]
+alpha_n = alpha_n[inds]
+plt.plot(alpha_n, v_mag_n, label='best fit')
+plt.legend()
+plt.show()
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err)

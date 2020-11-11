@@ -51,3 +51,12 @@ def get_model(alpha, semia, e):
     v_mag = np.sqrt(vx**2 + vy**2)
     v_angle = np.arctan2(vy, vx)
     return np.interp(alpha, v_angle, v_mag, period=2*pi)
+
+def get_model_with_phase(alpha, semia, e, phase):
+    semia = semia*R_sol
+    vx, vy = integrate_orbit(semia, e)
+    v_mag = np.sqrt(vx**2 + vy**2)
+    v_angle = np.arctan2(vy, vx)
+    alpha = alpha + phase
+    return np.interp(alpha, v_angle, v_mag, period=2*pi)
+

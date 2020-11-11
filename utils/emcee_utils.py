@@ -6,14 +6,14 @@ def Gauss(x, a, x0, sigma):
     return a* np.exp(-(x - x0)**2/(2*sigma**2))
 
 def log_likelihood(sample_params, alpha, v_mag, v_mag_err):
-    semia, e = sample_params
-    model = orb.get_model(alpha, semia, e)
+    semia, e, phase = sample_params
+    model = orb.get_model_with_phase(alpha, semia, e, phase)
     sigma2 = v_mag_err**2
     return -0.5*np.sum((v_mag - model)**2/sigma2 + np.log(sigma2))
 
 def log_prior(sample_params):
     semia, e = sample_params
-    if 0.1 < semia < 10.0 and 0 < e < 1.0:
+    if 0 < semia < 10 and 0 < e < 1.0 and 0 < phase < 2*np.pi:
         return 0.0
     return -np.inf
 
