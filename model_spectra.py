@@ -154,6 +154,11 @@ class Hist2D (Hist):
         img = np.transpose(img)
         img = self.blur(img)
         return img
+
+    def plt_hist2d_polar(self):
+        alpha = self.v_angle
+        v_mag = self.v_mag
+
     
 class Tomogram(Hist2D):
     def __init__(self, vx_array, vy_array):
@@ -344,9 +349,19 @@ def plt_hist2D_polar():
         v_mag = np.append(v_mag, 0.5*(v_mag_bins[n]+v_mag_bins[n+1])) # Velocity magnitude list
     return img, alpha, v_mag
    
-def find_ellipse(obs_data=False):
-    if obs_data == True: # Determines if image is from simulated or observational data
-        img, v_mag, alpha = img_util.reproject_image_into_polar(velocity_data)
+def find_ellipse(obs=False):
+    if obs == True: # Determines if image is from simulated or observational data
+        img, v_mag, alpha = img_util.hist2D_to_polar(obs_data.v_data, obs_data.vx, obs_data.vy)
+        alpha_bins = np.array([])
+        v_mag_bins = np.array([])
+        alpha_diff = - (alpha[1] - alpha[0])/2 # Half the distance between two alpha values
+        v_mag_diff = - (v_mag[1] - v_mag[0])/2 # Half the distance between two v_mag bins
+        for n in range(len(alpha)-1):
+            alpha_bins = np.append(alpha_bins, alpha[n] - alpha_diff)
+            v_mag_bins = np.append(v_mag_bins, v_mag[n] - v_mag_diff)
+        alpha_bins = np.append(alpha_bins, alpha[-1] + alpha_diff)
+        v_mag_bins = np.append(v_mag_bins, v_mag[-1] + alpha_diff)
+        plt.pcolormesh(alpha_bins, v_mag_bins, img)
         img = np.transpose(img)
     else:
         img, alpha, v_mag = plt_hist2D_polar()
@@ -366,19 +381,18 @@ def find_ellipse(obs_data=False):
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
 
     # Plot v_max on top of the histogram
-    if obs_data == True:
+    if obs == True:
         img = np.transpose(img)
-    plt.imshow(img)
-    if obs_data == True:
-        plt.ylim(np.flip(plt.ylim()))
+    plt.pcolormesh(alpha_bins, v_mag_bins, img)
+    #plt.imshow(img)
     plt.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
     plt.legend()
     plt.show()
     return alpha, v_max, v_max_err
 
-def get_ellipse_parameters(obs_data=False):
+def get_ellipse_parameters(obs=False):
     # Get values for the parameters of the ellipse
-    alpha, v_mag, v_mag_err = find_ellipse(obs_data=obs_data) # Data
+    alpha, v_mag, v_mag_err = find_ellipse(obs=obs) # Data
     
     nll = lambda *args: -mc_util.log_likelihood(*args) # Log likelihood function
     initial_guess = np.array([0.73, 0.54]) # Initial guess for parameters
@@ -429,11 +443,11 @@ Commands
 - All angles should be in degrees
 - obs_data=True if using observational data (False if not)
 '''
-obs_data = True
+obs = True
 #plt_spec_single(90)
 #plt_tom_single()
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
-#find_ellipse(obs_data=obs_data)
-#get_ellipse_parameters(obs_data=obs_data)
+#find_ellipse(obs=obs)
+get_ellipse_parameters(obs=obs)

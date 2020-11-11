@@ -43,8 +43,8 @@ class obs_2Dhist:
         v_data = hdulist_map[1].data
         self.v_data = v_data
         origin = np.array([len(v_data)/2, len(v_data[0])/2])
-        self.vx = np.linspace(-len(v_data)/2, len(v_data)/2, len(v_data) + 1)*scale_per_pixel
-        self.vy = np.linspace(len(v_data[0])/2, -len(v_data[0])/2, len(v_data) + 1)*scale_per_pixel
+        self.vx = np.linspace(-len(v_data)/2, len(v_data)/2, num=len(v_data) + 1)*scale_per_pixel
+        self.vy = np.linspace(len(v_data[0])/2, -len(v_data[0])/2, num=len(v_data) + 1)*scale_per_pixel
 
     def plt_cart(self):
         # Plot the histogram data in Cartesian coordinates

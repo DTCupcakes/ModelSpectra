@@ -57,6 +57,14 @@ def reproject_image_into_polar(data, origin=None):
     output = zi.reshape((nx, ny))
     return output, r_i, theta_i
 
+def hist2D_to_polar(data, x_bins, y_bins):
+    '''Change this function to use x and y values instead of bins'''
+    data_polar, r_i, theta_i = reproject_image_into_polar(data)
+    r_ran = np.sqrt(np.amax(x_bins)**2 + np.amax(y_bins)**2) # Range of real r values
+    r = r_i * r_ran/np.amax(r_i)
+    theta = theta_i
+    return data_polar, r, theta
+
 '''
 Find and plot histogram Gaussians
 '''
