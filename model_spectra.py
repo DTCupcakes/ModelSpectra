@@ -22,7 +22,8 @@ args = parser.parse_args()
 obs_filename = 'map10000_2.fits'
 scale_per_pixel = 5 #km/s per pixel
 obs_data = rd.obs_2Dhist(filename=obs_filename, scale_per_pixel=scale_per_pixel)
-obs_data.plt_cart()
+#obs_data.plt_cart()
+#plt.show()
 
 # Set the font (size) for plots
 #font = {'size' : 28}
@@ -390,10 +391,8 @@ def find_ellipse(obs=False):
     plt.show()
     return alpha, v_max, v_max_err
 
-def get_ellipse_parameters(obs=False):
+def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     # Get values for the parameters of the ellipse
-    alpha, v_mag, v_mag_err = find_ellipse(obs=obs) # Data
-    
     nll = lambda *args: -mc_util.log_likelihood(*args) # Log likelihood function
     initial_guess = np.array([0.73, 0.54]) # Initial guess for parameters
     bnds = ((0.1, None), (0, 0.999)) # Bounds on the parameters (semia, e, logf)
@@ -402,7 +401,9 @@ def get_ellipse_parameters(obs=False):
     print("Maximum likelihood estimates:")
     print("semia = {0:.3f}".format(semia))
     print("e = {0:.3f}".format(e))
+    return params
 
+def get_ellipse_uncertainties(params, alpha, v_max, v_max_err):
     pos = params.x + 1e-4*np.random.randn(32,2)
     nwalkers, ndim = pos.shape
     sampler = emcee.EnsembleSampler(nwalkers, ndim, mc_util.log_probability, args=(alpha, v_mag, v_mag_err))
@@ -438,6 +439,17 @@ def get_ellipse_parameters(obs=False):
     plt.legend(fontsize=14)
     plt.show()
 
+def plt_ellipse_params(params):
+    semia, e = params.x
+    semia = semia*R_sol
+    fig, axs = plt.subplots(1, figsize=(10, 10))
+    axs.pcolormesh(obs_data.vx, obs_data.vy, obs_data.v_data)
+    axs.set_aspect(aspect=1)
+    vx_n, vy_n = orb.integrate_orbit(semia, e)
+    axs.plot(vx_n, vy_n, 'r', label='Orbit with best parameters')
+    plt.legend()
+    plt.show()
+
 '''
 Commands
 - All angles should be in degrees
@@ -449,5 +461,7 @@ obs = True
 #plt_ecc_comp()
 #plt_spec_comp()
 #plt_var()
-#find_ellipse(obs=obs)
-get_ellipse_parameters(obs=obs)
+alpha, v_mag, v_mag_err = find_ellipse(obs=obs)
+params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
+plt_ellipse_params(params)
+#get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err)

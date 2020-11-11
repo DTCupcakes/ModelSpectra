@@ -51,7 +51,7 @@ class obs_2Dhist:
         fig, axs = plt.subplots(1, figsize=(10, 10))
         axs.pcolormesh(self.vx, self.vy, self.v_data)
         axs.set_aspect(aspect=1)
-        plt.show()
+        return axs
 
 
 '''
