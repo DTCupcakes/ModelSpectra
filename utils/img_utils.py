@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import signal
 from scipy.ndimage import map_coordinates
 
 '''
@@ -57,13 +58,27 @@ def reproject_image_into_polar(data, origin=None):
     output = zi.reshape((nx, ny))
     return output, r_i, theta_i
 
-def hist2D_to_polar(data, x_bins, y_bins):
-    '''Change this function to use x and y values instead of bins'''
+def obs_hist2D_to_polar(data, x, y):
     data_polar, r_i, theta_i = reproject_image_into_polar(data)
-    r_ran = np.sqrt(np.amax(x_bins)**2 + np.amax(y_bins)**2) # Range of real r values
+    r_ran = np.sqrt(np.amax(x)**2 + np.amax(y)**2) # Range of real r values
     r = r_i * r_ran/np.amax(r_i)
     theta = theta_i
     return data_polar, r, theta
+
+'''
+Functions for altering 2D histogram data
+'''
+def blur(img):
+        # Create a 1D Gaussian to blur the histogram
+        tom_pixels = 65 # Number of pixels on each side of the tomogram
+        t = np.linspace(-10, 10, tom_pixels)
+        sigma = 0.25 # Increasing this increases the blurring of the tomogram
+        bump = np.exp(-0.5*t**2/sigma**2)
+        bump /= np.trapz(bump) # Normalize the integral to 1
+        # Make a 2D kernal out of it
+        kernel = bump[:, np.newaxis] * bump[np.newaxis, :]
+        img_convolve = signal.fftconvolve(img, kernel[:, :], mode='same') # Convolve the tomogram
+        return img_convolve
 
 '''
 Find and plot histogram Gaussians

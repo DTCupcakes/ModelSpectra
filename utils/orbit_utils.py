@@ -1,4 +1,5 @@
 import numpy as np
+import utils.img_utils as img
 
 '''
 Constants
@@ -24,8 +25,10 @@ def acc(x):
     a = (-G*WD_mass/r**3)*x
     return a
 
-def integrate_orbit(semia, e):
-    # Integrate over an orbit with eccentricity e and return velocities
+def integrate_orbit(semia, e, phase=0):
+    '''Add phase to initial x and v'''
+    # Integrate over an orbit with parameters semia, e and return velocities
+    semia = semia*R_sol
     n_points = 1000
     period = 2*pi*np.sqrt(semia**3/(G*WD_mass))
     dt = period/n_points # timestep
@@ -46,17 +49,47 @@ def integrate_orbit(semia, e):
 
 def get_model(alpha, semia, e):
     # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
-    semia = semia*R_sol
     vx, vy = integrate_orbit(semia, e)
     v_mag = np.sqrt(vx**2 + vy**2)
     v_angle = np.arctan2(vy, vx)
     return np.interp(alpha, v_angle, v_mag, period=2*pi)
 
 def get_model_with_phase(alpha, semia, e, phase):
-    semia = semia*R_sol
     vx, vy = integrate_orbit(semia, e)
     v_mag = np.sqrt(vx**2 + vy**2)
     v_angle = np.arctan2(vy, vx)
     alpha = alpha + phase
     return np.interp(alpha, v_angle, v_mag, period=2*pi)
+
+'''
+Functions to plot orbits
+'''
+def plot_orbit_params(ax, semia, e):
+    # Plot orbit with parameters semia and e in Cartesian coordinates
+    vx_n, vy_n = integrate_orbit(semia, e)
+    ax.plot(vx_n, vy_n)
+    
+def plot_orbit_params_polar(ax, semia, e):
+    # Plot orbit with parameters semia and e in polar coordinates
+    vx_n, vy_n = integrate_orbit(semia, e)
+    v_mag_n, alpha_n = img.cart2polar(vx_n, vy_n)
+    inds = alpha_n.argsort()
+    alpha_n = alpha_n[inds]
+    v_mag_n = v_mag_n[inds]
+    ax.plot(alpha_n, v_mag_n)
+        
+def plot_Kep_v(ax):
+    # Plot circles of Keplerian velocity at particular physical radii
+    r = np.array([0.2, 0.64, 1.2, 2]) # Radii in solar radii
+    v_mag_array = np.sqrt(G*WD_mass/(r*R_sol))*cms_to_kms # Convert r to kms
+    # Add circles to the tomogram
+    step = 0
+    linestyles = ['--', '-.', ':' , '-']
+    alpha = np.linspace(0, 2*pi, 100)
+    for v_mag in v_mag_array:
+        vx = v_mag*np.cos(alpha)
+        vy = v_mag*np.sin(alpha)
+        label = str(r[step]) + r' $R_\odot$'
+        ax.plot(vx, vy, linestyle=linestyles[step], color='w', label=label)
+        step += 1
 

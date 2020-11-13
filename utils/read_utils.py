@@ -1,10 +1,22 @@
 import numpy as np
 import astropy.io.fits as fits
-import matplotlib.pyplot as plt
+
+import utils.img_utils as img
 
 '''
 Functions to print error messages
 '''
+def err_units(v):
+    wrong_units = False
+    if np.amax(v) > 10000:
+        print("Particle velocities are larger than plot limits.")
+        wrong_units = True
+    if np.amax(v) < 10:
+        print("Particle velocities are much smaller than plot limits.")
+        wrong_units = True
+    if wrong_units == True:
+        print("Are you sure the velocities are in the right units?")
+
 def err_no_files(file_array):
     if len(file_array) == 0:
         print("File array is empty.")
@@ -34,43 +46,61 @@ class ascii_file:
         print('Reading ', self.filename) # Status message
         return vx_i, vy_i
 
+class particle_data:
+    # Velocity data for a set of particles
+    def __init__(self, file_list, sep_tstep=False):
+        vx, vy = np.array([[],[]])
+        for filename in file_list:
+            data = ascii_file(filename)
+            vx_i, vy_i = data.read_v()
+            data.f.close()
+            err_units(vx_i) # Check if velocities are in the right units
+            vx = np.append(vx, vx_i)
+            vy = np.append(vy, vy_i)
+        if sep_tstep == False:
+            # Don't separate particles by timstep
+            vx, vy = np.hstack(vx), np.hstack(vy)
+        self.vx, self.vy = vx, vy
+        
+        # Convert particle velocities to polar coordinates
+        self.v_mag, self.alpha = img.cart2polar(vx, vy)
+        
+        self.rot_angle = 0 # Angle particle velocities have been rotated by
+        
+    def rotate(self, angle):
+       # Rotate velocities by angle (degrees) anticlockwise
+       print("Rotating velocities by", angle, "degrees")
+       angle = angle*np.pi/180 # Convert to rad
+       self.alpha = self.alpha + angle
+       self.vx, self.vy = img.polar2cart(self.v_mag, self.alpha)
+       self.rot_angle += angle
+       
+    def undo_rotate(self):
+       print("Undoing all previous rotation")
+       self.rotate(-self.rot_angle)     
+        
 class obs_2Dhist:
     # Read in a 2D histogram of observational data
     def __init__(self, filename, scale_per_pixel):
         # scale_per_pixel -> Velocity per pixel (in km/s)
         inpath = './obs_data/'
+        print("Reading", filename)
         hdulist_map = fits.open(inpath + filename)
         v_data = hdulist_map[1].data
-        self.v_data = v_data
-        origin = np.array([len(v_data)/2, len(v_data[0])/2])
-        self.vx = np.linspace(-len(v_data)/2, len(v_data)/2, num=len(v_data) + 1)*scale_per_pixel
-        self.vy = np.linspace(len(v_data[0])/2, -len(v_data[0])/2, num=len(v_data) + 1)*scale_per_pixel
-
-    def plt_cart(self):
-        # Plot the histogram data in Cartesian coordinates
-        fig, axs = plt.subplots(1, figsize=(10, 10))
-        axs.pcolormesh(self.vx, self.vy, self.v_data)
-        axs.set_aspect(aspect=1)
-        return axs
-
+        self.data_cart = v_data
+        origin = np.array([(len(v_data)-1)/2, (len(v_data[0])-1)/2])
+        vx = np.linspace(0, len(v_data), num=len(v_data)) - origin[0]
+        vy = np.linspace(0, len(v_data[0]), num=len(v_data[0])) - origin[1]
+        vx *= scale_per_pixel
+        vy *= scale_per_pixel
+        self.vx, self.vy = vx, vy
+        
+        # Convert data to polar coordinates
+        self.data_polar, self.vata.vy, bins=self.n_bins, ran_mag, self.alpha = img.obs_hist2D_to_polar(v_data, vx, vy)
 
 '''
-Functions for reading and selecting files
+Functions for selecting files
 '''
-def read_ascii(file_list):
-    # Read ascii file for velocities
-    vx = []
-    vy = []
-    for filename in file_list:
-        data = ascii_file(filename)
-        vx_i, vy_i = data.read_v()
-        data.f.close()
-        vx.append(vx_i)
-        vy.append(vy_i)
-    vx = np.array(vx)
-    vy = np.array(vy)
-    return vx, vy
-
 def find_files(ascii_files, e, n_orbit):
     # Sorts files by eccentricity of asteroid orbit
     e_str = str(e)[2]

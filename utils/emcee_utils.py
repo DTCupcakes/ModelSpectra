@@ -12,7 +12,7 @@ def log_likelihood(sample_params, alpha, v_mag, v_mag_err):
     return -0.5*np.sum((v_mag - model)**2/sigma2 + np.log(sigma2))
 
 def log_prior(sample_params):
-    semia, e = sample_params
+    semia, e, phase = sample_params
     if 0 < semia < 10 and 0 < e < 1.0 and 0 < phase < 2*np.pi:
         return 0.0
     return -np.inf
