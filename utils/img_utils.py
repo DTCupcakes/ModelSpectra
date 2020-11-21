@@ -63,6 +63,7 @@ def obs_hist2D_to_polar(data, x, y):
     r_ran = np.sqrt(np.amax(x)**2 + np.amax(y)**2) # Range of real r values
     r = r_i * r_ran/np.amax(r_i)
     theta = theta_i
+    data_polar = np.transpose(data_polar)
     return data_polar, r, theta
 
 '''

@@ -67,7 +67,7 @@ Functions to plot orbits
 def plot_orbit_params(ax, semia, e):
     # Plot orbit with parameters semia and e in Cartesian coordinates
     vx_n, vy_n = integrate_orbit(semia, e)
-    ax.plot(vx_n, vy_n)
+    ax.plot(vx_n, vy_n, label="orbit params")
     
 def plot_orbit_params_polar(ax, semia, e):
     # Plot orbit with parameters semia and e in polar coordinates
@@ -76,7 +76,7 @@ def plot_orbit_params_polar(ax, semia, e):
     inds = alpha_n.argsort()
     alpha_n = alpha_n[inds]
     v_mag_n = v_mag_n[inds]
-    ax.plot(alpha_n, v_mag_n)
+    ax.plot(alpha_n, v_mag_n, label="orbit params")
         
 def plot_Kep_v(ax):
     # Plot circles of Keplerian velocity at particular physical radii

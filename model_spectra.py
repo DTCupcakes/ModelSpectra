@@ -60,11 +60,11 @@ class Variability_Plot:
         v_max = 1000
         
         shift = np.array([])
-        for t in range(data.vx):
+        for t in range(len(data.vx)):
             hist, v_bins, patches = plt.hist(data.vx[t], bins=self.n_bins, range=[-v_max, v_max])
             plt.close() # Make sure only a single plot is shown
             v_hist = edges_to_val(v_bins)
-            shift.append(np.sum(v_hist*hist))
+            shift = np.append(shift, np.sum(v_hist*hist))
             
         self.shift = shift
         
@@ -83,11 +83,12 @@ class Tomogram:
             n_bins = 256
             
             # Create histogram data in Cartesian coordinates
-            vx_max = 1500 # Max vx (and vy)
+            vx_max = 1000 # Max vx (and vy)
+            data.rotate(-90)
             hist2d_cart, vx_bins, vy_bins, mesh = plt.hist2d(data.vx, data.vy, bins=n_bins, range=[[-vx_max,vx_max],[-vx_max,vx_max]])
             # Get the data to line up with the right axes
-            hist2d_cart = np.flip(hist2d_cart,1)
-            hist2d_cart = np.transpose(hist2d_cart)
+            #hist2d_cart = np.flip(hist2d_cart,1)
+            #hist2d_cart = np.transpose(hist2d_cart)
             
             # Create histogram data in polar coordinates
             v_mag_max = np.amax(self.data.v_mag)
@@ -124,7 +125,7 @@ class Tomogram:
             hist2d_polar = img.blur(hist2d_polar)
         ax.pcolormesh(self.alpha_bins, self.v_mag_bins, hist2d_polar)                
 
-def read_data(obs=False):
+def read_data(obs=False, sep_tstep=False):
     if obs == False: # Import particle data from filenames on command line
         parser = argparse.ArgumentParser(description='Some files.',formatter_class=argparse.RawTextHelpFormatter)
         parser.add_argument('files',nargs='+',help='files with the appropriate particle data')
@@ -259,7 +260,7 @@ Commands
 - All angles should be in degrees
 '''
 # Switch options on/off
-obs = False
+obs = True
 sep_tstep = False # Separate particles by timestep (for simulated data)
 blur_hist = False # Histogram blurring
 polar = False # Switch between Cartesian and polar plotting
@@ -270,18 +271,18 @@ emcee_outpath = './emcee_plots/'
 str_n = '90-99'
 
 # Read in data
-data = read_data(obs=obs)
+data = read_data(obs=obs, sep_tstep=sep_tstep)
 
 # Fit ellipse and plot
 alpha, v_mag, v_mag_err = find_ellipse(data, obs=obs)
 params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
 semia, e, phase = params.x
-get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
+#get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 plot_tom_single(data, semia, e, obs=obs, polar=polar, blur_hist=blur_hist)
 
 # Plot spectral line
 angle = 90
-plot_specline_single(data, angle)
+#plot_specline_single(data, angle)
 
 # Plot variability (make sure sep_tstep=True)
-plot_variability(data)
+#plot_variability(data)

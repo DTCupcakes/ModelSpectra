@@ -33,8 +33,7 @@ class ascii_file:
         
     def read_v(self):
     # Read in the velocity data
-        vx_i = []
-        vy_i = []
+        vx_i, vy_i = [], []
         column_number = 8 # Column with the velocity data
         line_step = 0
         for x in self.lines:
@@ -44,19 +43,22 @@ class ascii_file:
                 vx_i.append(float(row[column_number-2]))
                 vy_i.append(float(row[column_number-1]))
         print('Reading ', self.filename) # Status message
+        vx_i, vy_i = vx_i, vy_i
+        vx_i, vy_i = np.array(vx_i), np.array(vy_i)
         return vx_i, vy_i
 
 class particle_data:
     # Velocity data for a set of particles
     def __init__(self, file_list, sep_tstep=False):
-        vx, vy = np.array([[],[]])
+        vx, vy = [], []
         for filename in file_list:
             data = ascii_file(filename)
             vx_i, vy_i = data.read_v()
             data.f.close()
             err_units(vx_i) # Check if velocities are in the right units
-            vx = np.append(vx, vx_i)
-            vy = np.append(vy, vy_i)
+            vx.append(vx_i)
+            vy.append(vy_i)
+        vx, vy = np.array(vx), np.array(vy)
         if sep_tstep == False:
             # Don't separate particles by timstep
             vx, vy = np.hstack(vx), np.hstack(vy)
@@ -96,7 +98,7 @@ class obs_2Dhist:
         self.vx, self.vy = vx, vy
         
         # Convert data to polar coordinates
-        self.data_polar, self.vata.vy, bins=self.n_bins, ran_mag, self.alpha = img.obs_hist2D_to_polar(v_data, vx, vy)
+        self.data_polar, self.v_mag, self.alpha = img.obs_hist2D_to_polar(v_data, vx, vy)
 
 '''
 Functions for selecting files
