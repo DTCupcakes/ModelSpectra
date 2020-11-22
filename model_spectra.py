@@ -87,12 +87,12 @@ class Tomogram:
             data.rotate(-90)
             hist2d_cart, vx_bins, vy_bins, mesh = plt.hist2d(data.vx, data.vy, bins=n_bins, range=[[-vx_max,vx_max],[-vx_max,vx_max]])
             # Get the data to line up with the right axes
-            #hist2d_cart = np.flip(hist2d_cart,1)
-            #hist2d_cart = np.transpose(hist2d_cart)
+            hist2d_cart = np.transpose(hist2d_cart)
             
             # Create histogram data in polar coordinates
             v_mag_max = np.amax(self.data.v_mag)
             hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,v_mag_max]])
+            hist2d_polar = np.transpose(hist2d_polar)
             plt.close() # Remove histogram plots
             
         else: # Use observational data
@@ -113,6 +113,7 @@ class Tomogram:
     
     def plot_data(self, ax, blur_hist=False):
         hist2d_cart = self.hist2d_cart
+        hist2d_cart = np.transpose(hist2d_cart)
         if blur_hist == True:
             # Blur 2D histogram
             hist2d_cart = img.blur(hist2d_cart)
@@ -120,6 +121,7 @@ class Tomogram:
         
     def plot_data_polar(self, ax, blur_hist=False):
         hist2d_polar = self.hist2d_polar
+        hist2d_polar = np.transpose(hist2d_polar)
         if blur_hist == True:
             # Blur 2D histogram
             hist2d_polar = img.blur(hist2d_polar)
@@ -152,21 +154,21 @@ def plot_specline_single(data, angle):
     plt.show()
     plt.close()
     
-def plot_tom_single(data, semia, e, obs=False, polar=False, blur_hist=False):
+def plot_tom_single(data, semia, e, phase=0, obs=False, polar=False, blur_hist=False):
     # Plot a single tomogram
     tom = Tomogram(data, obs=obs)
     fig, axs = plt.subplots(1, figsize=(10,10))
     if polar == True: # Plot in polar coordinates
         tom.plot_data_polar(axs, blur_hist=blur_hist)
-        orb.plot_orbit_params_polar(axs, semia, e)
+        orb.plot_orbit_params_polar(axs, semia, e, phase=phase)
     else: # Plot in Cartesian coordinates
         tom.plot_data(axs, blur_hist=blur_hist)
         orb.plot_Kep_v(axs)
-        orb.plot_orbit_params(axs, semia, e)
+        orb.plot_orbit_params(axs, semia, e, phase=phase)
     plt.legend(fancybox=True, framealpha=0.4, loc='upper left')
-    #filename = 'tomogram_' + str_n + '.png'
-    #print('Writing to', filename) # Status message
-    #plt.savefig(outpath + filename)
+    filename = 'tomogram_obs_data.png'
+    print('Writing to', filename) # Status message
+    plt.savefig(outpath + filename)
     plt.show()
     plt.close()
     
@@ -263,7 +265,7 @@ Commands
 obs = True
 sep_tstep = False # Separate particles by timestep (for simulated data)
 blur_hist = False # Histogram blurring
-polar = False # Switch between Cartesian and polar plotting
+polar = False # Switch between Cartesiian and polar plotting
 
 # Set destination for output plots
 outpath = './plots/'
@@ -278,7 +280,7 @@ alpha, v_mag, v_mag_err = find_ellipse(data, obs=obs)
 params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
 semia, e, phase = params.x
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
-plot_tom_single(data, semia, e, obs=obs, polar=polar, blur_hist=blur_hist)
+plot_tom_single(data, semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
 
 # Plot spectral line
 angle = 90

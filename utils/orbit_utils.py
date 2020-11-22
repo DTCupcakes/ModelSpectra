@@ -32,8 +32,9 @@ def integrate_orbit(semia, e, phase=0):
     n_points = 1000
     period = 2*pi*np.sqrt(semia**3/(G*WD_mass))
     dt = period/n_points # timestep
-    x = np.array([semia*(1+e),0]) # Initial position
-    v = np.array([0,np.sqrt(G*WD_mass*(1-e)/(semia*(1+e)))]) # Initial velocity
+    r0 = semia*(1-e**2)/(1+e*np.cos(pi-phase)) # Initial value of r
+    x = np.array([r0,0]) # Initial position
+    v = np.array([0,np.sqrt(G*WD_mass*(2/r0-1/semia))]) # Initial velocity
     vx_n = np.zeros(n_points)
     vy_n = np.zeros(n_points)
     for n in range(n_points):
@@ -47,13 +48,6 @@ def integrate_orbit(semia, e, phase=0):
         vy_n[n] = v[1]*cms_to_kms
     return vx_n, vy_n
 
-def get_model(alpha, semia, e):
-    # Return velocity magnitude for a set of angles (alpha) in velocity space and a given semia and e
-    vx, vy = integrate_orbit(semia, e)
-    v_mag = np.sqrt(vx**2 + vy**2)
-    v_angle = np.arctan2(vy, vx)
-    return np.interp(alpha, v_angle, v_mag, period=2*pi)
-
 def get_model_with_phase(alpha, semia, e, phase):
     vx, vy = integrate_orbit(semia, e)
     v_mag = np.sqrt(vx**2 + vy**2)
@@ -64,19 +58,19 @@ def get_model_with_phase(alpha, semia, e, phase):
 '''
 Functions to plot orbits
 '''
-def plot_orbit_params(ax, semia, e):
+def plot_orbit_params(ax, semia, e, phase=0):
     # Plot orbit with parameters semia and e in Cartesian coordinates
-    vx_n, vy_n = integrate_orbit(semia, e)
-    ax.plot(vx_n, vy_n, label="orbit params")
+    vx_n, vy_n = integrate_orbit(semia, e, phase=phase)
+    ax.plot(vx_n, vy_n, 'r', label="orbit params")
     
-def plot_orbit_params_polar(ax, semia, e):
+def plot_orbit_params_polar(ax, semia, e, phase=0):
     # Plot orbit with parameters semia and e in polar coordinates
-    vx_n, vy_n = integrate_orbit(semia, e)
+    vx_n, vy_n = integrate_orbit(semia, e, phase=phase)
     v_mag_n, alpha_n = img.cart2polar(vx_n, vy_n)
     inds = alpha_n.argsort()
     alpha_n = alpha_n[inds]
     v_mag_n = v_mag_n[inds]
-    ax.plot(alpha_n, v_mag_n, label="orbit params")
+    ax.plot(alpha_n, v_mag_n, 'r', label="orbit params")
         
 def plot_Kep_v(ax):
     # Plot circles of Keplerian velocity at particular physical radii
