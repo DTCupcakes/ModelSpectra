@@ -154,23 +154,21 @@ def plot_specline_single(data, angle):
     plt.show()
     plt.close()
     
-def plot_tom_single(data, semia, e, phase=0, obs=False, polar=False, blur_hist=False):
+def plot_tom_single(data, ax, semia, e, phase=0, obs=False, polar=False, blur_hist=False):
     # Plot a single tomogram
     tom = Tomogram(data, obs=obs)
-    fig, axs = plt.subplots(1, figsize=(10,10))
     if polar == True: # Plot in polar coordinates
-        tom.plot_data_polar(axs, blur_hist=blur_hist)
-        orb.plot_orbit_params_polar(axs, semia, e, phase=phase)
+        tom.plot_data_polar(ax, blur_hist=blur_hist)
+        orb.plot_orbit_params_polar(ax, semia, e, phase=phase)
     else: # Plot in Cartesian coordinates
-        tom.plot_data(axs, blur_hist=blur_hist)
-        orb.plot_Kep_v(axs)
-        orb.plot_orbit_params(axs, semia, e, phase=phase)
-    plt.legend(fancybox=True, framealpha=0.4, loc='upper left')
-    filename = 'tomogram_obs_data.png'
-    print('Writing to', filename) # Status message
-    plt.savefig(outpath + filename)
-    plt.show()
-    plt.close()
+        tom.plot_data(ax, blur_hist=blur_hist)
+        orb.plot_Kep_v(ax)
+        orb.plot_orbit_params(ax, semia, e, phase=phase)
+    ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
+
+def plot_hist_max(ax, alpha, hist_max):
+    ax.plot(alpha, hist_max, label="Histogram max.")
+    ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
     
 def plot_variability(data):
     # Plot variability of Ca II spectral lines
@@ -194,16 +192,18 @@ def find_ellipse(data, obs=False, plot=False):
     # Find maximum v_mag for each alpha
     v_max = np.array([])
     v_max_err = np.array([])
+    hist_max = np.array([])
     for n in range(len(hist2d_polar)):
         #if n % 100 == 0:
             #img.plt_Gaussian_n(n, v_mag, hist2d_polar) # Plot Gaussian
-        hist_max = np.amax(hist2d_polar[n,:]) # Maximum histogram value
+        hist_max_n = np.amax(hist2d_polar[n,:]) # Maximum histogram value
+        hist_max = np.append(hist_max, hist_max_n)
         hist_max_arg = np.argmax(hist2d_polar[n,:]) # Index of max histogram value
         v_max_n = v_mag[-1]*hist_max_arg/len(hist2d_polar[n,:]) # v_mag value of max hist val
         v_max = np.append(v_max, v_max_n)
         mean = np.sum(v_mag*hist2d_polar[n,:])/np.sum(hist2d_polar[n,:])
         sigma = np.sqrt(np.sum(hist2d_polar[n,:]*(v_mag - mean)**2)/np.sum(hist2d_polar[n,:]))
-        popt, pcov = curve_fit(prms.Gauss, v_mag, hist2d_polar[n,:], p0=[hist_max, mean, sigma])
+        popt, pcov = curve_fit(prms.Gauss, v_mag, hist2d_polar[n,:], p0=[hist_max_n, mean, sigma])
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
     
     if plot == True: # Plot maximum v_mag
@@ -213,7 +213,7 @@ def find_ellipse(data, obs=False, plot=False):
         plt.legend()
         plt.show()
     
-    return alpha, v_max, v_max_err
+    return alpha, v_max, v_max_err, hist_max
 
 def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     # Get values for the parameters of the ellipse
@@ -245,6 +245,7 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
             ax.set_xlim(0, len(samples))
             ax.set_ylabel(labels[i])
         axes[-1].set_xlabel("step number")
+        plt.savefig('./emcee_plots/obs_data_sampler_steps.png')
         plt.show()
 
     tau = sampler.get_autocorr_time()
@@ -255,6 +256,7 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
     # Create corner plot
     if corner_plot == True:
         fig = corner.corner(flat_samples, labels=labels);
+        plt.savefig('./emcee_plots/obs_data_corner_plot.png')
         plt.show()
 
 '''
@@ -265,7 +267,7 @@ Commands
 obs = True
 sep_tstep = False # Separate particles by timestep (for simulated data)
 blur_hist = False # Histogram blurring
-polar = False # Switch between Cartesiian and polar plotting
+polar = True # Switch between Cartesiian and polar plotting
 
 # Set destination for output plots
 outpath = './plots/'
@@ -276,11 +278,17 @@ str_n = '90-99'
 data = read_data(obs=obs, sep_tstep=sep_tstep)
 
 # Fit ellipse and plot
-alpha, v_mag, v_mag_err = find_ellipse(data, obs=obs)
+alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
 params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
 semia, e, phase = params.x
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
-plot_tom_single(data, semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
+
+'''
+Plotting commands
+'''
+fig, axs = plt.subplots(2, figsize=(10,10))
+plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
+plot_hist_max(axs[1], alpha, hist_max)
 
 # Plot spectral line
 angle = 90
@@ -288,3 +296,9 @@ angle = 90
 
 # Plot variability (make sure sep_tstep=True)
 #plot_variability(data)
+
+filename = 'tomogram_obs_data.png'
+print('Writing to', filename) # Status message
+plt.savefig(outpath + filename)
+plt.show()
+plt.close()
