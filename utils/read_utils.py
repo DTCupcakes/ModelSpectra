@@ -2,6 +2,7 @@ import numpy as np
 import astropy.io.fits as fits
 
 import utils.img_utils as img
+import utils.orbit_utils as orb
 
 '''
 Functions to print error messages
@@ -16,6 +17,7 @@ def err_units(v):
         wrong_units = True
     if wrong_units == True:
         print("Are you sure the velocities are in the right units?")
+    return wrong_units
 
 def err_no_files(file_array):
     if len(file_array) == 0:
@@ -55,7 +57,11 @@ class particle_data:
             data = ascii_file(filename)
             vx_i, vy_i = data.read_v()
             data.f.close()
-            err_units(vx_i) # Check if velocities are in the right units
+            vx_i, vy_i = np.array(vx_i), np.array(vy_i)
+            wrong_units = err_units(vx_i) # Check if velocities are in the right units
+            if wrong_units == True: # Convert velocities from GR to kms
+                vx_i = orb.GR_to_kms(vx_i)
+                vy_i = orb.GR_to_kms(vy_i)
             vx.append(vx_i)
             vy.append(vy_i)
         vx, vy = np.array(vx), np.array(vy)
@@ -74,6 +80,9 @@ class particle_data:
        print("Rotating velocities by", angle, "degrees")
        angle = angle*np.pi/180 # Convert to rad
        self.alpha = self.alpha + angle
+       for alpha in self.alpha:
+           if alpha > np.pi:
+               alpha = alpha - 2*np.pi
        self.vx, self.vy = img.polar2cart(self.v_mag, self.alpha)
        self.rot_angle += angle
        

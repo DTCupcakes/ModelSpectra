@@ -28,6 +28,19 @@ def edges_to_val(x_edges):
         x = np.append(x, 0.5*(x_edges[n]+x_edges[n+1]))
     return x
 
+'''
+Find and plot histogram Gaussians
+'''
+def plot_Gaussian(n, v_mag, img):
+    plt.plot(v_mag, img[n,:], label=str(n))
+    #plt.plot(v_mag, prms.Gauss(v_mag, *popt), label='Gaussian')
+    plt.legend()
+    #plt.savefig('obs_data_angle_'+str(n)+'.png')
+    plt.show()
+
+'''
+Plot Classes
+'''
 class Spectral_Line:
     # Convert particle data into spectral line data
     def __init__(self, data):
@@ -84,17 +97,17 @@ class Tomogram:
             
             # Create histogram data in Cartesian coordinates
             vx_max = 1000 # Max vx (and vy)
-            data.rotate(-90)
+            fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist2d_cart, vx_bins, vy_bins, mesh = plt.hist2d(data.vx, data.vy, bins=n_bins, range=[[-vx_max,vx_max],[-vx_max,vx_max]])
-            # Get the data to line up with the right axes
-            hist2d_cart = np.transpose(hist2d_cart)
-            
+            plt.close(fig_hist)
+
             # Create histogram data in polar coordinates
             v_mag_max = np.amax(self.data.v_mag)
+            fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,v_mag_max]])
-            hist2d_polar = np.transpose(hist2d_polar)
-            plt.close() # Remove histogram plots
-            
+            plt.close(fig_hist) # Remove histogram plots
+            hist2d_polar = np.flip(hist2d_polar)
+
         else: # Use observational data
             vx_bins = val_to_edges(data.vx)
             vy_bins = val_to_edges(data.vy)
@@ -160,6 +173,8 @@ def plot_tom_single(data, ax, semia, e, phase=0, obs=False, polar=False, blur_hi
     if polar == True: # Plot in polar coordinates
         tom.plot_data_polar(ax, blur_hist=blur_hist)
         orb.plot_orbit_params_polar(ax, semia, e, phase=phase)
+        plt.xlim(tom.alpha_bins[0], tom.alpha_bins[-1])
+        plt.ylim(tom.v_mag_bins[0], tom.v_mag_bins[-1])
     else: # Plot in Cartesian coordinates
         tom.plot_data(ax, blur_hist=blur_hist)
         orb.plot_Kep_v(ax)
@@ -194,16 +209,16 @@ def find_ellipse(data, obs=False, plot=False):
     v_max_err = np.array([])
     hist_max = np.array([])
     for n in range(len(hist2d_polar)):
-        #if n % 100 == 0:
-            #img.plt_Gaussian_n(n, v_mag, hist2d_polar) # Plot Gaussian
-        hist_max_n = np.amax(hist2d_polar[n,:]) # Maximum histogram value
+        alpha_col = hist2d_polar[n,:] # Array of histogram values for one alpha
+        hist_max_n = np.amax(alpha_col) # Maximum histogram value
         hist_max = np.append(hist_max, hist_max_n)
-        hist_max_arg = np.argmax(hist2d_polar[n,:]) # Index of max histogram value
-        v_max_n = v_mag[-1]*hist_max_arg/len(hist2d_polar[n,:]) # v_mag value of max hist val
+        hist_max_arg = np.argmax(alpha_col) # Index of max histogram value
+        v_max_n = v_mag[-1]*hist_max_arg/len(alpha_col) # v_mag value of max hist val
         v_max = np.append(v_max, v_max_n)
-        mean = np.sum(v_mag*hist2d_polar[n,:])/np.sum(hist2d_polar[n,:])
-        sigma = np.sqrt(np.sum(hist2d_polar[n,:]*(v_mag - mean)**2)/np.sum(hist2d_polar[n,:]))
-        popt, pcov = curve_fit(prms.Gauss, v_mag, hist2d_polar[n,:], p0=[hist_max_n, mean, sigma])
+        mean = np.sum(v_mag*alpha_col)/np.sum(alpha_col)
+        sigma = np.sqrt(np.sum(alpha_col*(v_mag - v_max_n)**2)/np.sum(v_mag))
+        #if n % 100 == 0:
+            #plot_Gaussian(n, v_mag, hist2d_polar) # Plot Gaussian
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
     
     if plot == True: # Plot maximum v_mag
@@ -245,7 +260,7 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
             ax.set_xlim(0, len(samples))
             ax.set_ylabel(labels[i])
         axes[-1].set_xlabel("step number")
-        plt.savefig('./emcee_plots/obs_data_sampler_steps.png')
+        plt.savefig('./emcee_plots/WD_14_sampler_steps.png')
         plt.show()
 
     tau = sampler.get_autocorr_time()
@@ -256,7 +271,7 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
     # Create corner plot
     if corner_plot == True:
         fig = corner.corner(flat_samples, labels=labels);
-        plt.savefig('./emcee_plots/obs_data_corner_plot.png')
+        plt.savefig('./emcee_plots/WD_14_corner_plot.png')
         plt.show()
 
 '''
@@ -264,9 +279,9 @@ Commands
 - All angles should be in degrees
 '''
 # Switch options on/off
-obs = True
+obs = False
 sep_tstep = False # Separate particles by timestep (for simulated data)
-blur_hist = False # Histogram blurring
+blur_hist = True # Histogram blurring
 polar = True # Switch between Cartesiian and polar plotting
 
 # Set destination for output plots
@@ -276,6 +291,8 @@ str_n = '90-99'
 
 # Read in data
 data = read_data(obs=obs, sep_tstep=sep_tstep)
+if obs == False and polar == False:
+    data.rotate(3.221*180/np.pi)
 
 # Fit ellipse and plot
 alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
@@ -288,7 +305,9 @@ Plotting commands
 '''
 fig, axs = plt.subplots(2, figsize=(10,10))
 plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
-plot_hist_max(axs[1], alpha, hist_max)
+axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
+axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
+#plot_hist_max(axs[1], alpha, v_mag)
 
 # Plot spectral line
 angle = 90
@@ -297,8 +316,10 @@ angle = 90
 # Plot variability (make sure sep_tstep=True)
 #plot_variability(data)
 
-filename = 'tomogram_obs_data.png'
+filename = 'tomogram_WD_form_1.png'
 print('Writing to', filename) # Status message
 plt.savefig(outpath + filename)
 plt.show()
-plt.close()
+#plt.close()
+
+
