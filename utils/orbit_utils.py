@@ -16,6 +16,11 @@ M_sol = 2.e33 # Solar mass in cgs units
 WD_mass_sol = 0.705 # White dwarf mass in solar units
 WD_mass = WD_mass_sol*M_sol # White dwarf mass in cgs units
 
+def GR_to_kms(v):
+    # Takes an array of velocities in GR units and converts it to kms
+    v *= cms_to_kms
+    return v
+
 '''
 Orbit integration functions
 '''

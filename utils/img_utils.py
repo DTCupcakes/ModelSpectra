@@ -81,13 +81,3 @@ def blur(img):
         img_convolve = signal.fftconvolve(img, kernel[:, :], mode='same') # Convolve the tomogram
         return img_convolve
 
-'''
-Find and plot histogram Gaussians
-'''
-def plt_Gaussian_n(n, v_mag, img):
-    plt.plot(v_mag, img[n,:], label=str(n))
-    #plt.plot(v_mag, mc_util.Gauss(v_mag, *popt), label='Gaussian')
-    plt.legend()
-    #plt.savefig('obs_data_angle_'+str(n)+'.png')
-    plt.show()
-
