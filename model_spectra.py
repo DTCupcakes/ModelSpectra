@@ -73,10 +73,10 @@ class Variability_Plot:
         v_max = 1000
         
         shift = np.array([])
-        print(len(data.vx))
         for t in range(len(data.vx)):
+            fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist, v_bins, patches = plt.hist(data.vx[t], bins=self.n_bins, range=[-v_max, v_max])
-            plt.close() # Make sure only a single plot is shown
+            plt.close(fig_hist) # Make sure only a single plot is shown
             v_hist = edges_to_val(v_bins)
             shift = np.append(shift, np.sum(v_hist*hist))
             
@@ -85,8 +85,8 @@ class Variability_Plot:
     def plot_variability(self, ax):
         time = np.linspace(0, 1, num=len(data.vx))
         ax.plot(time, self.shift, marker='o', linestyle='None')
-        ax.xlabel('Orbital Phase')
-        ax.ylabel('Blue-to-red ratio')
+        ax.set_xlabel('Orbital Phase')
+        ax.set_ylabel('Blue-to-red ratio')
 
 class Tomogram:
     # Convert particle data into 2D histogram data
@@ -288,23 +288,23 @@ emcee_outpath = './emcee_plots/'
 
 # Read in data
 data = read_data(obs=obs, sep_tstep=sep_tstep)
-if obs == False and polar == False:
+if obs == False and polar == False and sep_tstep == False:
     data.rotate(3.221*180/np.pi)
 
 # Fit ellipse and plot
-alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
-params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
-semia, e, phase = params.x
+#alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
+#params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
+#semia, e, phase = params.x
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
 '''
 Plotting commands
 '''
-fig, axs = plt.subplots(2, figsize=(10,10))
-plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
+fig, axs = plt.subplots(1, figsize=(10,10))
+#plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
 if obs == True:
     axs[0].set_ylim(0, 800)
-axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
+#axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
 #axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
 #plot_hist_max(axs[1], alpha, hist_max)
 
@@ -313,9 +313,9 @@ angle = 90
 #plot_specline_single(data, angle)
 
 # Plot variability (make sure sep_tstep=True)
-plot_variability(data, axs[1])
+plot_variability(data, axs)
 
-filename = 'tomogram_obs_data.png'
+filename = 'variability_obs_data.png'
 print('Writing to', filename) # Status message
 plt.savefig(outpath + filename)
 plt.show()

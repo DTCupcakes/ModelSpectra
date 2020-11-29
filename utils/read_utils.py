@@ -53,6 +53,7 @@ class particle_data:
     # Velocity data for a set of particles
     def __init__(self, file_list, sep_tstep=False):
         vx, vy = [], []
+        v_mag, alpha = [], []
         for filename in file_list:
             data = ascii_file(filename)
             vx_i, vy_i = data.read_v()
@@ -62,16 +63,20 @@ class particle_data:
             if wrong_units == True: # Convert velocities from GR to kms
                 vx_i = orb.GR_to_kms(vx_i)
                 vy_i = orb.GR_to_kms(vy_i)
+            # Convert to polar coordinates
+            v_mag_i, alpha_i = img.cart2polar(vx_i, vy_i)
             vx.append(vx_i)
             vy.append(vy_i)
+            v_mag.append(v_mag_i)
+            alpha.append(alpha_i)
         vx, vy = np.array(vx), np.array(vy)
-        if sep_tstep == False:
-            # Don't separate particles by timstep
+        v_mag, alpha = np.array(v_mag), np.array(alpha)
+        if sep_tstep == False: # Don't separate particles by timestep
             vx, vy = np.hstack(vx), np.hstack(vy)
-        self.vx, self.vy = vx, vy
+            v_mag, alpha = np.hstack(v_mag), np.hstack(alpha)
         
-        # Convert particle velocities to polar coordinates
-        self.v_mag, self.alpha = img.cart2polar(vx, vy)
+        self.vx, self.vy = vx, vy
+        self.v_mag, self.alpha = v_mag, alpha
         
         self.rot_angle = 0 # Angle particle velocities have been rotated by
         
