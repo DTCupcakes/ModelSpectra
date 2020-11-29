@@ -73,6 +73,7 @@ class Variability_Plot:
         v_max = 1000
         
         shift = np.array([])
+        print(len(data.vx))
         for t in range(len(data.vx)):
             hist, v_bins, patches = plt.hist(data.vx[t], bins=self.n_bins, range=[-v_max, v_max])
             plt.close() # Make sure only a single plot is shown
@@ -183,19 +184,15 @@ def plot_tom_single(data, ax, semia, e, phase=0, obs=False, polar=False, blur_hi
     ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
 
 def plot_hist_max(ax, alpha, hist_max):
-    ax.plot(alpha, hist_max, label="Histogram max.")
+    hist_max_inv = 1/hist_max
+    ax.plot(alpha, hist_max_inv, label="Histogram max.")
+    ax.set_ylim(0, np.amax(hist_max_inv)+np.amin(hist_max_inv))
     ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
     
-def plot_variability(data):
+def plot_variability(data, axs):
     # Plot variability of Ca II spectral lines
     var_plot = Variability_Plot(data)
-    fig, axs = plt.subplots(1, figsize=(10,10))
     var_plot.plot_variability(axs)
-    #filename = 'variability_plot_' + str_n + '.png'
-    #print('Writing to', filename) # Status message
-    #plt.savefig(outpath + filename)
-    plt.show()
-    plt.close()
 
 '''
 Functions for ellipse fitting
@@ -281,14 +278,13 @@ Commands
 '''
 # Switch options on/off
 obs = False
-sep_tstep = False # Separate particles by timestep (for simulated data)
+sep_tstep = True # Separate particles by timestep (for simulated data)
 blur_hist = True # Histogram blurring
 polar = True # Switch between Cartesiian and polar plotting
 
 # Set destination for output plots
 outpath = './plots/'
 emcee_outpath = './emcee_plots/'
-str_n = '90-99'
 
 # Read in data
 data = read_data(obs=obs, sep_tstep=sep_tstep)
@@ -306,18 +302,20 @@ Plotting commands
 '''
 fig, axs = plt.subplots(2, figsize=(10,10))
 plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
+if obs == True:
+    axs[0].set_ylim(0, 800)
 axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
-axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
-#plot_hist_max(axs[1], alpha, v_mag)
+#axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
+#plot_hist_max(axs[1], alpha, hist_max)
 
 # Plot spectral line
 angle = 90
 #plot_specline_single(data, angle)
 
 # Plot variability (make sure sep_tstep=True)
-#plot_variability(data)
+plot_variability(data, axs[1])
 
-filename = 'tomogram_WD_form_1.png'
+filename = 'tomogram_obs_data.png'
 print('Writing to', filename) # Status message
 plt.savefig(outpath + filename)
 plt.show()
