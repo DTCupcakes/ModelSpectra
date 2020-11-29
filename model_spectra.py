@@ -107,6 +107,7 @@ class Tomogram:
             hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,v_mag_max]])
             plt.close(fig_hist) # Remove histogram plots
             hist2d_polar = np.flip(hist2d_polar)
+            hist2d_polar = np.flip(hist2d_polar, axis=1)
 
         else: # Use observational data
             vx_bins = val_to_edges(data.vx)
