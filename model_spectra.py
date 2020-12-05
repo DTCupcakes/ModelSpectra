@@ -74,8 +74,9 @@ class Variability_Plot:
         
         shift = np.array([])
         for t in range(len(data.vx)):
+            fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist, v_bins, patches = plt.hist(data.vx[t], bins=self.n_bins, range=[-v_max, v_max])
-            plt.close() # Make sure only a single plot is shown
+            plt.close(fig_hist) # Make sure only a single plot is shown
             v_hist = edges_to_val(v_bins)
             shift = np.append(shift, np.sum(v_hist*hist))
             
@@ -84,8 +85,8 @@ class Variability_Plot:
     def plot_variability(self, ax):
         time = np.linspace(0, 1, num=len(data.vx))
         ax.plot(time, self.shift, marker='o', linestyle='None')
-        ax.xlabel('Orbital Phase')
-        ax.ylabel('Blue-to-red ratio')
+        ax.set_xlabel('Orbital Phase')
+        ax.set_ylabel('Blue-to-red ratio')
 
 class Tomogram:
     # Convert particle data into 2D histogram data
@@ -100,11 +101,12 @@ class Tomogram:
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist2d_cart, vx_bins, vy_bins, mesh = plt.hist2d(data.vx, data.vy, bins=n_bins, range=[[-vx_max,vx_max],[-vx_max,vx_max]])
             plt.close(fig_hist)
+            hist2d_cart = np.flip(hist2d_cart)
 
             # Create histogram data in polar coordinates
-            v_mag_max = np.amax(self.data.v_mag)
+            self.v_mag_max = np.amax(self.data.v_mag)
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
-            hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,v_mag_max]])
+            hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,self.v_mag_max]])
             plt.close(fig_hist) # Remove histogram plots
             hist2d_polar = np.flip(hist2d_polar)
             hist2d_polar = np.flip(hist2d_polar, axis=1)
@@ -123,7 +125,6 @@ class Tomogram:
         self.hist2d_cart = hist2d_cart
         self.alpha_bins, self.v_mag_bins = alpha_bins, v_mag_bins
         self.hist2d_polar = hist2d_polar
-        
     
     def plot_data(self, ax, blur_hist=False):
         hist2d_cart = self.hist2d_cart
@@ -168,7 +169,7 @@ def plot_specline_single(data, angle):
     plt.show()
     plt.close()
     
-def plot_tom_single(data, ax, semia, e, phase=0, obs=False, polar=False, blur_hist=False):
+def plot_tom_single(data, ax, semia=1.e6, e=0, phase=0, obs=False, polar=False, blur_hist=False):
     # Plot a single tomogram
     tom = Tomogram(data, obs=obs)
     if polar == True: # Plot in polar coordinates
@@ -183,19 +184,15 @@ def plot_tom_single(data, ax, semia, e, phase=0, obs=False, polar=False, blur_hi
     ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
 
 def plot_hist_max(ax, alpha, hist_max):
-    ax.plot(alpha, hist_max, label="Histogram max.")
+    hist_max_inv = 1/hist_max
+    ax.plot(alpha, hist_max_inv, label="Histogram max.")
+    ax.set_ylim(0, np.amax(hist_max_inv)+np.amin(hist_max_inv))
     ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
     
-def plot_variability(data):
+def plot_variability(data, axs):
     # Plot variability of Ca II spectral lines
     var_plot = Variability_Plot(data)
-    fig, axs = plt.subplots(1, figsize=(10,10))
     var_plot.plot_variability(axs)
-    #filename = 'variability_plot_' + str_n + '.png'
-    #print('Writing to', filename) # Status message
-    #plt.savefig(outpath + filename)
-    plt.show()
-    plt.close()
 
 '''
 Functions for ellipse fitting
@@ -277,47 +274,52 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
 
 '''
 Commands
-- All angles should be in degrees
 '''
 # Switch options on/off
-obs = False
+obs = True
 sep_tstep = False # Separate particles by timestep (for simulated data)
-blur_hist = True # Histogram blurring
-polar = True # Switch between Cartesiian and polar plotting
+blur_hist = False # Histogram blurring
+polar = False # Switch between Cartesian and polar plotting
+plot_orbit = False # Plot orbit with parameters semia, e and phase
 
 # Set destination for output plots
 outpath = './plots/'
 emcee_outpath = './emcee_plots/'
-str_n = '90-99'
 
 # Read in data
 data = read_data(obs=obs, sep_tstep=sep_tstep)
-if obs == False and polar == False:
-    data.rotate(3.221*180/np.pi)
+if obs == False and sep_tstep == False:
+    data.rotate(0.015*np.pi*180/np.pi)
 
 # Fit ellipse and plot
-alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
-params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
-semia, e, phase = params.x
-#get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
+if plot_orbit == True:
+    alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
+    params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
+    semia, e, phase = params.x
+    #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
 '''
 Plotting commands
 '''
-fig, axs = plt.subplots(2, figsize=(10,10))
-plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
-axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
-axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
-#plot_hist_max(axs[1], alpha, v_mag)
+fig, axs = plt.subplots(1, figsize=(10,10))
+if plot_orbit == True:
+    plot_tom_single(data, axs, semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
+else:
+    plot_tom_single(data, axs, obs=obs, polar=polar, blur_hist=blur_hist) 
+if obs == True and polar == True:
+    axs.set_ylim(0, 800)
+#axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
+#axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
+#plot_hist_max(axs[1], alpha, hist_max)
 
 # Plot spectral line
 angle = 90
 #plot_specline_single(data, angle)
 
 # Plot variability (make sure sep_tstep=True)
-#plot_variability(data)
+#plot_variability(data, axs)
 
-filename = 'tomogram_WD_form_1.png'
+filename = 'tomogram_obs_data_nofit.png'
 print('Writing to', filename) # Status message
 plt.savefig(outpath + filename)
 plt.show()
