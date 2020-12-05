@@ -85,9 +85,11 @@ class particle_data:
        print("Rotating velocities by", angle, "degrees")
        angle = angle*np.pi/180 # Convert to rad
        self.alpha = self.alpha + angle
+       step = 0
        for alpha in self.alpha:
            if alpha > np.pi:
-               alpha = alpha - 2*np.pi
+               self.alpha[step] -= 2*np.pi
+           step += 1
        self.vx, self.vy = img.polar2cart(self.v_mag, self.alpha)
        self.rot_angle += angle
        

@@ -101,11 +101,12 @@ class Tomogram:
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist2d_cart, vx_bins, vy_bins, mesh = plt.hist2d(data.vx, data.vy, bins=n_bins, range=[[-vx_max,vx_max],[-vx_max,vx_max]])
             plt.close(fig_hist)
+            hist2d_cart = np.flip(hist2d_cart)
 
             # Create histogram data in polar coordinates
-            v_mag_max = np.amax(self.data.v_mag)
+            self.v_mag_max = np.amax(self.data.v_mag)
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
-            hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,v_mag_max]])
+            hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,self.v_mag_max]])
             plt.close(fig_hist) # Remove histogram plots
             hist2d_polar = np.flip(hist2d_polar)
             hist2d_polar = np.flip(hist2d_polar, axis=1)
@@ -124,7 +125,6 @@ class Tomogram:
         self.hist2d_cart = hist2d_cart
         self.alpha_bins, self.v_mag_bins = alpha_bins, v_mag_bins
         self.hist2d_polar = hist2d_polar
-        
     
     def plot_data(self, ax, blur_hist=False):
         hist2d_cart = self.hist2d_cart
@@ -169,7 +169,7 @@ def plot_specline_single(data, angle):
     plt.show()
     plt.close()
     
-def plot_tom_single(data, ax, semia, e, phase=0, obs=False, polar=False, blur_hist=False):
+def plot_tom_single(data, ax, semia=1.e6, e=0, phase=0, obs=False, polar=False, blur_hist=False):
     # Plot a single tomogram
     tom = Tomogram(data, obs=obs)
     if polar == True: # Plot in polar coordinates
@@ -274,13 +274,13 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
 
 '''
 Commands
-- All angles should be in degrees
 '''
 # Switch options on/off
-obs = False
-sep_tstep = True # Separate particles by timestep (for simulated data)
-blur_hist = True # Histogram blurring
-polar = True # Switch between Cartesiian and polar plotting
+obs = True
+sep_tstep = False # Separate particles by timestep (for simulated data)
+blur_hist = False # Histogram blurring
+polar = False # Switch between Cartesian and polar plotting
+plot_orbit = False # Plot orbit with parameters semia, e and phase
 
 # Set destination for output plots
 outpath = './plots/'
@@ -288,22 +288,26 @@ emcee_outpath = './emcee_plots/'
 
 # Read in data
 data = read_data(obs=obs, sep_tstep=sep_tstep)
-if obs == False and polar == False and sep_tstep == False:
-    data.rotate(3.221*180/np.pi)
+if obs == False and sep_tstep == False:
+    data.rotate(0.015*np.pi*180/np.pi)
 
 # Fit ellipse and plot
-#alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
-#params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
-#semia, e, phase = params.x
-#get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
+if plot_orbit == True:
+    alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
+    params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
+    semia, e, phase = params.x
+    #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
 '''
 Plotting commands
 '''
 fig, axs = plt.subplots(1, figsize=(10,10))
-#plot_tom_single(data, axs[0], semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
-if obs == True:
-    axs[0].set_ylim(0, 800)
+if plot_orbit == True:
+    plot_tom_single(data, axs, semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
+else:
+    plot_tom_single(data, axs, obs=obs, polar=polar, blur_hist=blur_hist) 
+if obs == True and polar == True:
+    axs.set_ylim(0, 800)
 #axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
 #axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
 #plot_hist_max(axs[1], alpha, hist_max)
@@ -313,9 +317,9 @@ angle = 90
 #plot_specline_single(data, angle)
 
 # Plot variability (make sure sep_tstep=True)
-plot_variability(data, axs)
+#plot_variability(data, axs)
 
-filename = 'variability_obs_data.png'
+filename = 'tomogram_obs_data_nofit.png'
 print('Writing to', filename) # Status message
 plt.savefig(outpath + filename)
 plt.show()
