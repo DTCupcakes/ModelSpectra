@@ -148,51 +148,13 @@ def read_data(obs=False, sep_tstep=False):
         parser.add_argument('files',nargs='+',help='files with the appropriate particle data')
         args = parser.parse_args()
         data = rd.particle_data(args.files, sep_tstep=sep_tstep)
+        run_name = args.files[0].split('/')[1]
     else: # Import observational data from Manser et al. (2016)
         obs_filename = 'map10000_2.fits'
         scale_per_pixel = 5 #km/s per pixel
         data = rd.obs_2Dhist(filename=obs_filename, scale_per_pixel=scale_per_pixel)
-    return data
-
-'''
-Plotting functions
-'''
-def plot_specline_single(data, angle):
-    # Plot a single spectral line from a particular angle
-    spec_line = Spectral_Line(data)
-    fig, axs = plt.subplots(1, figsize=(10,10))
-    spec_line.plot_angle(axs, angle)
-    filename = 'spec_line_' + str(angle) + '.png'
-    fig.tight_layout()
-    print('Writing to', filename) # Status message
-    #plt.savefig(outpath + filename)
-    plt.show()
-    plt.close()
-    
-def plot_tom_single(data, ax, semia=1.e6, e=0, phase=0, obs=False, polar=False, blur_hist=False):
-    # Plot a single tomogram
-    tom = Tomogram(data, obs=obs)
-    if polar == True: # Plot in polar coordinates
-        tom.plot_data_polar(ax, blur_hist=blur_hist)
-        orb.plot_orbit_params_polar(ax, semia, e, phase=phase)
-        plt.xlim(tom.alpha_bins[0], tom.alpha_bins[-1])
-        plt.ylim(tom.v_mag_bins[0], tom.v_mag_bins[-1])
-    else: # Plot in Cartesian coordinates
-        tom.plot_data(ax, blur_hist=blur_hist)
-        orb.plot_Kep_v(ax)
-        orb.plot_orbit_params(ax, semia, e, phase=phase)
-    ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
-
-def plot_hist_max(ax, alpha, hist_max):
-    hist_max_inv = 1/hist_max
-    ax.plot(alpha, hist_max_inv, label="Histogram max.")
-    ax.set_ylim(0, np.amax(hist_max_inv)+np.amin(hist_max_inv))
-    ax.legend(fancybox=True, framealpha=0.4, loc='upper left')
-    
-def plot_variability(data, axs):
-    # Plot variability of Ca II spectral lines
-    var_plot = Variability_Plot(data)
-    var_plot.plot_variability(axs)
+        run_name = 'obs'
+    return data, run_name
 
 '''
 Functions for ellipse fitting
@@ -277,52 +239,80 @@ Commands
 '''
 # Switch options on/off
 obs = True
-sep_tstep = False # Separate particles by timestep (for simulated data)
 blur_hist = False # Histogram blurring
 polar = False # Switch between Cartesian and polar plotting
+plot_fit = False # Plot polar maxima (for tomogram)
 plot_orbit = False # Plot orbit with parameters semia, e and phase
+angle = 90 # Angle (clockwise) from positive y axis at which spectral line is plotted
+plots = [1]
+# 1 - Plot tomogram
+# 2 - Plot spectral line
+# 3 - Variability plot
 
 # Set destination for output plots
 outpath = './plots/'
 emcee_outpath = './emcee_plots/'
 
 # Read in data
-data = read_data(obs=obs, sep_tstep=sep_tstep)
-if obs == False and sep_tstep == False:
-    data.rotate(0.015*np.pi*180/np.pi)
+data, run_name = read_data(obs=obs)
+#data.rotate(-0.25*np.pi*180/np.pi)
 
 # Fit ellipse and plot
-if plot_orbit == True:
-    alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
-    params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
-    semia, e, phase = params.x
-    #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
+alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
+params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
+semia, e, phase = params.x
+#get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
-'''
-Plotting commands
-'''
-fig, axs = plt.subplots(1, figsize=(10,10))
-if plot_orbit == True:
-    plot_tom_single(data, axs, semia=semia, e=e, phase=phase, obs=obs, polar=polar, blur_hist=blur_hist)
-else:
-    plot_tom_single(data, axs, obs=obs, polar=polar, blur_hist=blur_hist) 
-if obs == True and polar == True:
-    axs.set_ylim(0, 800)
-#axs[0].legend(fancybox=True, framealpha=0.4, loc='upper left')
-#axs[1].errorbar(alpha, v_mag, yerr=v_mag_err)
-#plot_hist_max(axs[1], alpha, hist_max)
+if 1 in plots: # Plot tomogram
+    tom = Tomogram(data, obs=obs)
+    fig, axs = plt.subplots(1, figsize=(10,10))
+    if polar == True: # Plot in polar coordinates
+        tom.plot_data_polar(axs, blur_hist=blur_hist)
+        if plot_orbit == True:
+            orb.plot_orbit_params_polar(axs, semia, e, phase=phase)
+        plt.xlim(tom.alpha_bins[0], tom.alpha_bins[-1])
+        plt.ylim(tom.v_mag_bins[0], tom.v_mag_bins[-1])
+        if plot_fit == True:
+            axs.errorbar(alpha, v_mag, yerr=v_mag_err)
+    else: # Plot in Cartesian coordinates
+        tom.plot_data(axs, blur_hist=blur_hist)
+        orb.plot_Kep_v(axs)
+        if plot_orbit == True:
+            orb.plot_orbit_params(axs, semia, e, phase=phase)
+        plt.xlim(-1000, 1000)
+        plt.ylim(-1000, 1000)
+    if obs == True and polar == True:
+        axs.set_ylim(0, 800)
+    axs.legend(fancybox=True, framealpha=0.4, loc='upper left')
+    fname_suf = rd.create_filename_suffix(run_name, tomogram=True, polar=polar, plot_orbit=plot_orbit)
+    filename = 'tom_' + fname_suf + '.png'
+    print('Writing tomogram to', filename) # Status message
+    plt.savefig(outpath + filename)
+    plt.show()
+    plt.close()
 
-# Plot spectral line
-angle = 90
-#plot_specline_single(data, angle)
+if 2 in plots: # Plot spectral line
+    spec_line = Spectral_Line(data)
+    fig, axs = plt.subplots(1, figsize=(10,10))
+    spec_line.plot_angle(axs, angle)
+    fig.tight_layout()
+    fname_suf = rd.create_filename_suffix(run_name, tomogram=False)
+    filename = 'spec_line_' + fname_suf + '_' + str(angle) + '.png'
+    print('Writing spectral line to', filename) # Status message
+    plt.savefig(outpath + filename)
+    plt.show()
+    plt.close()
 
-# Plot variability (make sure sep_tstep=True)
-#plot_variability(data, axs)
-
-filename = 'tomogram_obs_data_nofit.png'
-print('Writing to', filename) # Status message
-plt.savefig(outpath + filename)
-plt.show()
-#plt.close()
+if 3 in plots: # Plot variability of Ca II emission lines
+    data, run_name = read_data(obs=obs, sep_tstep=True)
+    fig, axs = plt.subplots(1, figsize=(10,10))
+    var_plot = Variability_Plot(data)
+    var_plot.plot_variability(axs)
+    fname_suf = rd.create_filename_suffix(run_name, tomogram=False)
+    filename = 'var_' + fname_suf + '.png'
+    print('Writing variability plot to', filename) # Status message
+    plt.savefig(outpath + filename)
+    plt.show()
+    plt.close()
 
 

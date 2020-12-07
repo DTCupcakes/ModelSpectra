@@ -130,3 +130,15 @@ def find_files(ascii_files, e, n_orbit):
             file_list.append(f)
     err_no_files(file_list) # Return an error if the file list is empty
     return file_list
+
+'''
+Function for creating filenames
+'''
+def create_filename_suffix(run_name, tomogram, polar=False, plot_orbit=False):
+    filename_suffix = run_name
+    if tomogram == True:
+        if polar == True:
+            filename_suffix += '_polar'
+        if plot_orbit == True:
+            filename_suffix += '_fit'
+    return filename_suffix
