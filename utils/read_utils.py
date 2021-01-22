@@ -123,9 +123,9 @@ def find_files(ascii_files, e, n_orbit):
     # Sorts files by eccentricity of asteroid orbit
     e_str = str(e)[2]
     n_orbit_str = str(n_orbit)
-    print('Finding files for orbit',n_orbit_str,'at e=',e_str)
+    print('Finding files for orbit',n_orbit_str,'at e=',e)
     file_list = []
-    for f in file_list:
+    for f in ascii_files:
         if f[-13] == e_str and f[-9:-7] == n_orbit_str:
             file_list.append(f)
     err_no_files(file_list) # Return an error if the file list is empty
