@@ -65,6 +65,9 @@ class Spectral_Line:
         max_WHT = 560 # Maximum velocity from WHT observations in 2006
         ax.axvline(x=max_WHT, linestyle='-.')
         ax.axvline(x=-max_WHT, linestyle='-.')
+        ax.set_xlabel('Projected Velocity (km/s)')
+        ax.set_ylabel('No. of particles (x$10^5$)')
+        ax.set_title('Projection angle = ' + str(angle) + ' degrees')
         
 class Variability_Plot:
     # Plot variability of Ca II spectral lines
@@ -150,7 +153,7 @@ args = parser.parse_args()
 def read_data(file_list, obs=False, sep_tstep=False):
     if obs == False: # Import particle data from filenames on command line
         data = rd.particle_data(file_list, sep_tstep=sep_tstep)
-        run_name = file_list[0].split('/')[1]
+        run_name = file_list[0].split('/')[2] #
     else: # Import observational data from Manser et al. (2016)
         obs_filename = 'map10000_2.fits'
         scale_per_pixel = 5 #km/s per pixel
@@ -178,8 +181,9 @@ def find_ellipse(data, obs=False, plot=False):
         v_max_n = v_mag[-1]*hist_max_arg/len(alpha_col) # v_mag value of max hist val
         v_max = np.append(v_max, v_max_n)
         mean = np.sum(v_mag*alpha_col)/np.sum(alpha_col)
-        sigma = np.sqrt(np.sum(alpha_col*(v_mag - v_max_n)**2)/np.sum(v_mag))
-        #if n % 100 == 0:
+        sigma = np.sqrt(np.sum((v_mag - v_max_n)**2)/np.sum(v_mag))
+        #if n % 10 == 0:
+            #print(sigma)
             #plot_Gaussian(n, v_mag, hist2d_polar) # Plot Gaussian
         v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
     
@@ -195,25 +199,28 @@ def find_ellipse(data, obs=False, plot=False):
 def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     # Get values for the parameters of the ellipse
     nll = lambda *args: -prms.log_likelihood(*args) # Log likelihood function
-    initial_guess = np.array([0.73, 0.54, np.pi]) # Initial guess for parameters
-    bnds = ((1e-8, 10),(0, 0.999),(0, 2*np.pi)) # Bounds on the parameters
+    initial_guess = np.array([0.73, 0.54, 17, 0, 0, 0]) # Initial guess for parameters
+    bnds = ((1e-8, 10),(0.54, 0.54),(17,17),(-180,180),(-180,180),(-180, 180)) # Bounds on the parameters
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
-    semia, e, phase = params.x
+    semia, e, i, O, w, f = params.x
     print("Maximum likelihood estimates:")
     print("semia = {0:.3f}".format(semia))
     print("e = {0:.3f}".format(e))
-    print("phase = {0:.3f}".format(phase))
+    print("i = {0:.3f}".format(i))
+    print("O = {0:.3f}".format(O))
+    print("w = {0:.3f}".format(w))
+    print("f = {0:.3f}".format(f))
     return params
 
 def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=False, corner_plot=False):
-    pos = params.x + 1e-4*np.random.randn(32,3)
+    pos = params.x + 1e-4*np.random.randn(32,6)
     nwalkers, ndim = pos.shape
     sampler = emcee.EnsembleSampler(nwalkers, ndim, prms.log_probability, args=(alpha, v_mag, v_mag_err))
     sampler.run_mcmc(pos, 5000, progress=True);
     
     if plot_sampler_steps == True:
         # Plot steps of emcee sampler
-        fig, axes = plt.subplots(3, figsize=(10,7), sharex=True)
+        fig, axes = plt.subplots(6, figsize=(10,7), sharex=True)
         samples = sampler.get_chain()
         labels = ["semia", "e", "phase"]
         for i in range(ndim):
@@ -245,13 +252,13 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
 Commands
 '''
 # Switch options on/off
-obs = False
-blur_hist = True # Histogram blurring
+obs = True
+blur_hist = False # Histogram blurring
 polar = False # Switch between Cartesian and polar plotting
 plot_fit = False # Plot polar maxima (for tomogram)
-plot_orbit = False # Plot orbit with parameters semia, e and phase
+plot_orbit = True # Plot orbit with parameters semia, e, i, O, w, f
 angle = 90 # Angle (clockwise) from positive y axis at which spectral line is plotted
-plots = [5]
+plots = [1]
 # 1 - Plot tomogram
 # 2 - Plot spectral line
 # 3 - Variability plot
@@ -259,7 +266,7 @@ plots = [5]
 # 5 - Plot tomogram eccentricity comparison
 
 # Set the font (size) for plots
-font = {'size' : 22}
+font = {'size' : 18}
 matplotlib.rc('font', **font)
 
 # Set destination for output plots
@@ -267,13 +274,13 @@ outpath = './plots/'
 emcee_outpath = './emcee_plots/'
 
 # Read in data
-#data, run_name = read_data(args.files, obs=obs)
+data, run_name = read_data(args.files, obs=obs)
 #data.rotate(-0.25*np.pi*180/np.pi)
 
 # Fit ellipse and plot
-#alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
-#params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
-#semia, e, phase = params.x
+alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
+params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
+semia, e, i, O, w, f = params.x
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
 if 1 in plots: # Plot tomogram
@@ -282,7 +289,8 @@ if 1 in plots: # Plot tomogram
     if polar == True: # Plot in polar coordinates
         tom.plot_data_polar(axs, blur_hist=blur_hist)
         if plot_orbit == True:
-            orb.plot_orbit_params_polar(axs, semia, e, phase=phase)
+            #orb.plot_orbit_params_polar(axs, semia, e, phase=phase)
+            orb.plot_orbit_params_polar_3D(axs, semia, e, i, O, w, f) # Plot in 3D
         plt.xlim(-np.pi, np.pi)
         if plot_fit == True:
             axs.errorbar(alpha, v_mag, yerr=v_mag_err)
@@ -291,15 +299,19 @@ if 1 in plots: # Plot tomogram
         tom.plot_data(axs, blur_hist=blur_hist)
         orb.plot_Kep_v(axs)
         if plot_orbit == True:
-            orb.plot_orbit_params(axs, semia, e, phase=phase)
-        plt.xlim(-800, 800)
-        plt.ylim(-800, 800)
-    axs.legend(fancybox=True, framealpha=0.4, loc='upper left', fontsize=24)
+            #orb.plot_orbit_params(axs, semia, e, phase=phase)
+            orb.plot_orbit_params_3D(axs, semia, e, i, O, w, f) # Plot in 3D
+        plt.xlim(-950, 950)
+        plt.ylim(-950, 950)
+        axs.set_xlabel(r'$v_x$ (km/s)')
+        axs.set_ylabel(r'$v_y$ (km/s)')
+    axs.legend(fancybox=True, framealpha=0.4, loc='upper right', fontsize=16)
     #axs.axvline(x=135*np.pi/180, linestyle='-.', color='r')
     fname_suf = rd.create_filename_suffix(run_name, tomogram=True, polar=polar, plot_orbit=plot_orbit)
-    filename = 'tom_' + fname_suf + '.png'
+    #filename = 'tom_5_' + run_name[-11:-7] + '.png' #
+    filename = 'tom_J1228_3D_setei_polar.png'
     print('Writing tomogram to', filename) # Status message
-    plt.savefig(outpath + filename)
+    plt.savefig('./tom_movie/' + filename) #
     plt.show()
     plt.close()
 
@@ -331,14 +343,20 @@ if 4 in plots: # Plot tomogram comparison
     # Plotted orbits will only be from a fit to a single set of data
     data_obs, run_name = read_data(args.files, obs=True)
     data_sim, run_name = read_data(args.files, obs=False)
-    data_sim.rotate(-0.25*np.pi*180/np.pi)
+    #data_sim.rotate(-0.25*np.pi*180/np.pi)
     tom_obs = Tomogram(data_obs, obs=True)
     tom_sim = Tomogram(data_sim, obs=False)
-    fig, axs = plt.subplots(1, 2, sharey=True, figsize=(20, 10), dpi=50)
+    fig, axs = plt.subplots(1, 2, sharey=True, figsize=(20, 12), dpi=50)
     plt.subplots_adjust(wspace=0.05, hspace=0.05) # Set the spacing between axes
     if polar == True: # Plot in polar coordinates
+        deg = np.arange(-120,181,60) # x-axis tick positions (degrees)
+        deg_locs = deg*np.pi/180 # x-axis tick positions (radians)
+        deg_labels = [] # x-axis tick labels (degrees)
+        for d in deg:
+            deg_labels.append(str(d))
         for ax in axs:
-            ax.xaxis.set_major_locator(ticker.FixedLocator([-3,-2,-1,0,1,2,3]))
+            ax.xaxis.set_major_locator(ticker.FixedLocator(deg_locs))
+            ax.xaxis.set_major_formatter(ticker.FixedFormatter(deg_labels))
         tom_obs.plot_data_polar(axs[0])
         tom_sim.plot_data_polar(axs[1], blur_hist=blur_hist)
         if plot_orbit == True:
@@ -348,10 +366,11 @@ if 4 in plots: # Plot tomogram comparison
         if plot_fit == True:
             axs[0].errorbar(alpha, v_mag, yerr=v_mag_err)
         plt.ylim(0, 950)
-        axs[0].set_xlabel(r'Angle $\alpha$ (rad)')
-        axs[1].set_xlabel(r'Angle $\alpha$ (rad)')
+        axs[0].set_xlabel(r'Angle $\alpha$ (degrees)')
+        axs[1].set_xlabel(r'Angle $\alpha$ (degrees)')
         axs[0].set_ylabel(r'Velocity $|\mathbf{v}|$ (km/s)')
-        plt.setp(axs.get_xticklabels(), rotation=30, horizontalalignment='right')
+        #for ax in axs:
+            #plt.setp(ax.get_xticklabels(), rotation=90, horizontalalignment='right')
     else: # Plot in Cartesian coordinates
         for ax in axs:
             ax.xaxis.set_major_locator(ticker.IndexLocator(base=250, offset=250))
