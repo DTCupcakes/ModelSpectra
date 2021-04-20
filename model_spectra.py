@@ -200,7 +200,7 @@ def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     # Get values for the parameters of the ellipse
     nll = lambda *args: -prms.log_likelihood(*args) # Log likelihood function
     initial_guess = np.array([0.73, 0.54, 17, 0, 0, 0]) # Initial guess for parameters
-    bnds = ((1e-8, 10),(0.54, 0.54),(17,17),(-180,180),(-180,180),(-180, 180)) # Bounds on the parameters
+    bnds = ((1e-8, 10),(0, 0.999),(-360,360),(-360,360),(-360,360),(-360, 360)) # Bounds on the parameters
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
     semia, e, i, O, w, f = params.x
     print("Maximum likelihood estimates:")
@@ -222,14 +222,15 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
         # Plot steps of emcee sampler
         fig, axes = plt.subplots(6, figsize=(10,7), sharex=True)
         samples = sampler.get_chain()
-        labels = ["semia", "e", "phase"]
+        labels = ["semia", "e", "i", "O", "w", "f"]
         for i in range(ndim):
             ax = axes[i]
             ax.plot(samples[:,:,i], "k", alpha=0.3)
             ax.set_xlim(0, len(samples))
             ax.set_ylabel(labels[i])
         axes[-1].set_xlabel("step number")
-        plt.savefig('./emcee_plots/WD_14_sampler_steps.png')
+        print("Plot sampler steps")
+        plt.savefig('./emcee_plots/WD_obs_setei_sampler_steps.png')
         plt.show()
 
     tau = sampler.get_autocorr_time()
@@ -240,7 +241,7 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
     # Create corner plot
     if corner_plot == True:
         fig = corner.corner(flat_samples, labels=labels);
-        plt.savefig('./emcee_plots/WD_14_corner_plot.png')
+        plt.savefig('./emcee_plots/WD_obs_setei_corner_plot.png')
         plt.show()
 
     for i in range(ndim):
@@ -255,7 +256,7 @@ Commands
 obs = True
 blur_hist = False # Histogram blurring
 polar = False # Switch between Cartesian and polar plotting
-plot_fit = False # Plot polar maxima (for tomogram)
+plot_fit = True # Plot polar maxima (for tomogram)
 plot_orbit = True # Plot orbit with parameters semia, e, i, O, w, f
 angle = 90 # Angle (clockwise) from positive y axis at which spectral line is plotted
 plots = [1]
@@ -281,6 +282,12 @@ data, run_name = read_data(args.files, obs=obs)
 alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
 params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
 semia, e, i, O, w, f = params.x
+
+# Get reduced chi-squared for fit
+v_mag_mod = orb.get_model_3D(alpha, semia, e , i, O, w, f) # Velocity magnitudes using the model
+chisq = prms.redchisqg(v_mag, v_mag_mod, deg=6, sd=v_mag_err)
+print('Chi_sq =',chisq)
+
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
 if 1 in plots: # Plot tomogram
@@ -309,7 +316,7 @@ if 1 in plots: # Plot tomogram
     #axs.axvline(x=135*np.pi/180, linestyle='-.', color='r')
     fname_suf = rd.create_filename_suffix(run_name, tomogram=True, polar=polar, plot_orbit=plot_orbit)
     #filename = 'tom_5_' + run_name[-11:-7] + '.png' #
-    filename = 'tom_J1228_3D_setei_polar.png'
+    filename = 'tom_1.png'
     print('Writing tomogram to', filename) # Status message
     plt.savefig('./tom_movie/' + filename) #
     plt.show()
