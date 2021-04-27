@@ -174,5 +174,5 @@ def plot_Kep_v_3D(ax):
     linestyles = ['--', '-.', ':' , '-']
     for i, rad in enumerate(r):
         vx, vy = integrate_orbit_3D(rad, 0, 17, 0, 0, 0) # Convert r to kms
-        label = str(rad)
+        label = str(rad) + r' $R_\odot$'
         ax.plot(vx, vy, linestyle=linestyles[i], color='w', label=label)

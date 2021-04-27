@@ -200,7 +200,7 @@ def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     # Get values for the parameters of the ellipse
     nll = lambda *args: -prms.log_likelihood(*args) # Log likelihood function
     initial_guess = np.array([0.73, 0.54, 17, 0, 0, 0]) # Initial guess for parameters
-    bnds = ((1e-8, 10),(0, 0.999),(-360,360),(-360,360),(-360,360),(-360, 360)) # Bounds on the parameters
+    bnds = ((1e-8, 10),(0, 0.999),(17,17),(-360,360),(-360,360),(-360, 360)) # Bounds on the parameters
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
     semia, e, i, O, w, f = params.x
     print("Maximum likelihood estimates:")
@@ -350,7 +350,7 @@ if 4 in plots: # Plot tomogram comparison
     # Plotted orbits will only be from a fit to a single set of data
     data_obs, run_name = read_data(args.files, obs=True)
     data_sim, run_name = read_data(args.files, obs=False)
-    #data_sim.rotate(-0.25*np.pi*180/np.pi)
+    data_sim.rotate(-0.25*np.pi*180/np.pi)
     tom_obs = Tomogram(data_obs, obs=True)
     tom_sim = Tomogram(data_sim, obs=False)
     fig, axs = plt.subplots(1, 2, sharey=True, figsize=(24, 12), dpi=50)
