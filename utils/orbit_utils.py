@@ -168,3 +168,11 @@ def plot_Kep_v(ax):
         ax.plot(vx, vy, linestyle=linestyles[step], color='w', label=label)
         step += 1
 
+def plot_Kep_v_3D(ax):
+    # Plot circles of Keplerian velocity at particular physical radii
+    r = np.array([0.2, 0.64, 1.2, 2]) # Radii in solar radii
+    linestyles = ['--', '-.', ':' , '-']
+    for i, rad in enumerate(r):
+        vx, vy = integrate_orbit_3D(rad, 0, 17, 0, 0, 0) # Convert r to kms
+        label = str(rad)
+        ax.plot(vx, vy, linestyle=linestyles[i], color='w', label=label)

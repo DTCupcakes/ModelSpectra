@@ -254,12 +254,12 @@ Commands
 '''
 # Switch options on/off
 obs = True
-blur_hist = False # Histogram blurring
+blur_hist = True # Histogram blurring
 polar = False # Switch between Cartesian and polar plotting
-plot_fit = True # Plot polar maxima (for tomogram)
-plot_orbit = True # Plot orbit with parameters semia, e, i, O, w, f
+plot_fit = False # Plot polar maxima (for tomogram)
+plot_orbit = False # Plot orbit with parameters semia, e, i, O, w, f
 angle = 90 # Angle (clockwise) from positive y axis at which spectral line is plotted
-plots = [1]
+plots = [4]
 # 1 - Plot tomogram
 # 2 - Plot spectral line
 # 3 - Variability plot
@@ -267,7 +267,7 @@ plots = [1]
 # 5 - Plot tomogram eccentricity comparison
 
 # Set the font (size) for plots
-font = {'size' : 18}
+font = {'size' : 22}
 matplotlib.rc('font', **font)
 
 # Set destination for output plots
@@ -353,7 +353,7 @@ if 4 in plots: # Plot tomogram comparison
     #data_sim.rotate(-0.25*np.pi*180/np.pi)
     tom_obs = Tomogram(data_obs, obs=True)
     tom_sim = Tomogram(data_sim, obs=False)
-    fig, axs = plt.subplots(1, 2, sharey=True, figsize=(20, 12), dpi=50)
+    fig, axs = plt.subplots(1, 2, sharey=True, figsize=(24, 12), dpi=50)
     plt.subplots_adjust(wspace=0.05, hspace=0.05) # Set the spacing between axes
     if polar == True: # Plot in polar coordinates
         deg = np.arange(-120,181,60) # x-axis tick positions (degrees)
@@ -383,8 +383,10 @@ if 4 in plots: # Plot tomogram comparison
             ax.xaxis.set_major_locator(ticker.IndexLocator(base=250, offset=250))
         tom_obs.plot_data(axs[0])
         tom_sim.plot_data(axs[1], blur_hist=blur_hist)
-        orb.plot_Kep_v(axs[0])
-        orb.plot_Kep_v(axs[1])
+        #orb.plot_Kep_v(axs[0])
+        #orb.plot_Kep_v(axs[1])
+        orb.plot_Kep_v_3D(axs[0])
+        orb.plot_Kep_v_3D(axs[1])
         if plot_orbit == True:
             orb.plot_orbit_params(axs[0], semia, e, phase=phase)
             orb.plot_orbit_params(axs[1], semia, e, phase=phase)
