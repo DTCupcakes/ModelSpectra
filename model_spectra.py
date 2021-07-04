@@ -8,189 +8,312 @@ from scipy.optimize import minimize, curve_fit
 import emcee
 import corner
 
-import utils.read_utils as rd
-import utils.orbit_utils as orb
-import utils.img_utils as img
-import utils.emcee_utils as prms
+# Import external modules
+import utils.read_utils as rd # Module for reading data
+import utils.orbit_utils as orb # Module for finding and plotting orbits
+import utils.img_utils as img # Module for processing images
+import utils.emcee_utils as prms # Module for MCMC fits
+
 
 def val_to_edges(x):
-    # Takes an evenly spaced 1D array and outputs 1D grid edges for the values
-    x_edges = np.array([])
-    x_diff = (x[1] - x[0])/2
+    '''Output histogram bin edges for an evenly-spaced 1D array.
+    
+        Parameters:
+        x -> 1D evenly-spaced array 
+        
+        Returns:
+        x_edges -> Histogram bin edges for x
+    '''
+    
+    x_edges = np.array([]) # Histogram bin edges
+    x_diff = (x[1] - x[0])/2 # Distance between bin value and bin edge
+    
+    # Append edge values to the left of the bin values
     for n in range(len(x)):
         x_edges = np.append(x_edges, x[n] - x_diff)
+        
+    # Append edge values to the right of the final bin value
     x_edges = np.append(x_edges, x[n] + x_diff)
+    
     return x_edges
 
 def edges_to_val(x_edges):
-    # Take the grid edges for a 1D array and return the values
-    x = np.array([])
+    '''Output evenly-spaced 1D array from the histogram bin edges.
+        
+        Parameters:
+        x_edges -> Histogram bin edges
+        
+        Returns:
+        x -> Evenly-spaced 1D array
+    '''
+    
+    x = np.array([]) # Evenly-spaced 1D array values
+    
+    # Append bin values to the right of the bin values
     for n in range(len(x_edges)-1):
         x = np.append(x, 0.5*(x_edges[n]+x_edges[n+1]))
+        
     return x
 
-'''
-Find and plot histogram Gaussians
-'''
 def plot_Gaussian(n, v_mag, img):
-    plt.plot(v_mag, img[n,:], label=str(n))
-    #plt.plot(v_mag, prms.Gauss(v_mag, *popt), label='Gaussian')
+    '''Plot 1D cross-section of 2D histogram
+    
+        Parameters:
+        n -> number of x-axis 2D histogram bin
+        v_mag -> y-axis bin values
+        img -> 2D histogram 
+    '''
+    
+    plt.plot(v_mag, img[n,:], label=str(n)) # Plot histogram cross-section
+    #plt.plot(v_mag, prms.Gauss(v_mag, *popt), label='Gaussian') # Plot best-fitting Gaussian for the histogram data
     plt.legend()
     #plt.savefig('obs_data_angle_'+str(n)+'.png')
     plt.show()
 
-'''
-Plot Classes
-'''
+    
+''' Classes for different types of plots created from particle velocity data '''
+
 class Spectral_Line:
-    # Convert particle data into spectral line data
+    '''Simulated spectral line with a 1D histogram'''
+    
     def __init__(self, data):
-        self.data = data # rd.particle_data object
-        self.n_bins = 256
+        self.data = data # rd.particle_data object (particle velocity data)
+        self.n_bins = 256 # Number of histogram bins
     
     def plot_angle(self, ax, angle):
-        # Produce spectral line angle clockwise from +ve y-axis
-        print('Creating spectral line at ',angle,' degrees') # Status message
+        '''Produce spectral line from projecting velocity data along one axis
+            
+            Parameters:
+            ax -> Figure axis (for plotting)
+            angle -> Angle of projection axis clockwise from the positive y-axis
+        '''
+        
+        print('Creating spectral line at',angle,' degrees') # Status message
+        
         self.data.rotate(angle) # Rotate velocities anticlockwise by angle
-        v_max = 1000
+        
+        # Create histogram of projected velocities
+        v_max = 1000 # Maximum range on histogram
         hist_fig, hist_ax = plt.subplots() # Plot the histogram separately
         hist, v_bins, patches = hist_ax.hist(self.data.vy, bins=self.n_bins, range=[-v_max, v_max])
         plt.close(hist_fig) # Make sure only a single plot is shown
-        v_hist = edges_to_val(v_bins)
-        hist /= 100000
+        v_hist = edges_to_val(v_bins) # Get histogram bin values from bin edge values
+        hist /= 100000 # Scale y-axis of histogram
         
+        # Plot histogram on ax
         ax.plot(v_hist, hist)
         plt.xlim(-v_max, v_max)
-        ax.axvline(x=0, linestyle='--')
-        max_WHT = 560 # Maximum velocity from WHT observations in 2006
-        ax.axvline(x=max_WHT, linestyle='-.')
+        ax.axvline(x=0, linestyle='--') # Create dashed line at y=0
+        max_WHT = 560 # Maximum velocity from WHT observations in 2006 (Manser et al., 2016)
+        ax.axvline(x=max_WHT, linestyle='-.') # Create vertical lines at max_WHT
         ax.axvline(x=-max_WHT, linestyle='-.')
         ax.set_xlabel('Projected Velocity (km/s)')
         ax.set_ylabel('No. of particles (x$10^5$)')
         ax.set_title('Projection angle = ' + str(angle) + ' degrees')
         
 class Variability_Plot:
-    # Plot variability of Ca II spectral lines
+    '''Plot ratio of redshift to blueshift in simulated spectral line'''
+    
     def __init__(self, data):
-        self.data = data
-        self.n_bins = 256
-        v_max = 1000
+        self.data = data # rd.particle_data object (particle velocity data)
+        self.n_bins = 256 # Number of histogram bins
+        v_max = 1000 # Maximum range on histogram
         
-        shift = np.array([])
-        for t in range(len(data.vx)):
+        # Determine y-axis values on redshift-blueshift plot
+        shift = np.array([]) # y-axis values on redshift-blueshift plot
+        for t in range(len(data.vx)): # Get values at each timestep
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist, v_bins, patches = plt.hist(data.vx[t], bins=self.n_bins, range=[-v_max, v_max])
             plt.close(fig_hist) # Make sure only a single plot is shown
-            v_hist = edges_to_val(v_bins)
+            v_hist = edges_to_val(v_bins) # Get histogram bin values from bin edge values
             shift = np.append(shift, np.sum(v_hist*hist))
             
         self.shift = shift
         
     def plot_variability(self, ax):
-        time = np.linspace(0, 1, num=len(data.vx))
+        '''Produce plot of redshift/blueshift of spectral line over time
+            
+            Parameters:
+            ax -> Figure axis (for plotting)
+        '''
+        
+        # Plot redshift/blueshift with phase (assuming data covers a single orbit)
+        time = np.linspace(0, 1, num=len(data.vx)) # Phase
         ax.plot(time, self.shift, marker='o', linestyle='None')
         ax.set_xlabel('Orbital Phase')
         ax.set_ylabel('Blue-to-red ratio')
 
 class Tomogram:
-    # Convert particle data into 2D histogram data
+    '''Plot particle velocities in the x and y direction in a 2D histogram (tomogram)'''
+    
     def __init__(self, data, obs=False):
-        self.data = data # rd.particle_data object
+        self.data = data # rd.particle_data object (particle velocity data)
         
         if obs == False: # Use simulated particle data
-            n_bins = 256
+            # Create tomogram from array of particle velocities
             
-            # Create histogram data in Cartesian coordinates
+            n_bins = 256 # Number of histogram bins
+            
+            # Create tomogram data (Cartesian)
             vx_max = 1000 # Max vx (and vy)
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist2d_cart, vx_bins, vy_bins, mesh = plt.hist2d(data.vx, data.vy, bins=n_bins, range=[[-vx_max,vx_max],[-vx_max,vx_max]])
-            plt.close(fig_hist)
+            plt.close(fig_hist) # Make sure only a single plot is shown
             hist2d_cart = np.flip(hist2d_cart)
 
-            # Create histogram data in polar coordinates
-            self.v_mag_max = np.amax(self.data.v_mag)
+            # Create tomogram data (polar)
+            # v_mag -> Velocity magnitude
+            # alpha -> Angle (in velocity space)
+            self.v_mag_max = np.amax(self.data.v_mag) # Max v_mag
             fig_hist, axs_hist = plt.subplots(1, figsize=(10,10))
             hist2d_polar, alpha_bins, v_mag_bins, mesh = plt.hist2d(data.alpha, data.v_mag, bins=n_bins, range=[[-np.pi,np.pi],[0,self.v_mag_max]])
-            plt.close(fig_hist) # Remove histogram plots
+            plt.close(fig_hist) # Make sure only a single plot is shown
             hist2d_polar = np.flip(hist2d_polar)
             hist2d_polar = np.flip(hist2d_polar, axis=1)
 
         else: # Use observational data
+            # Obtain bin edges from existing 2D histogram
+            
+            # Create tomogram data (Cartesian)
             vx_bins = val_to_edges(data.vx)
             vy_bins = val_to_edges(data.vy)
             hist2d_cart = data.data_cart
             
-            # Initialise polar coordinates
+            # Create tomogram data (polar)
             v_mag_bins = val_to_edges(data.v_mag)
             alpha_bins = val_to_edges(data.alpha)
             hist2d_polar = data.data_polar
             
+        # Define attributes for tomogram object
         self.vx_bins, self.vy_bins = vx_bins, vy_bins
         self.hist2d_cart = hist2d_cart
         self.alpha_bins, self.v_mag_bins = alpha_bins, v_mag_bins
         self.hist2d_polar = hist2d_polar
     
     def plot_data(self, ax, blur_hist=False):
+        '''Plot Cartesian tomogram of particle velocity data
+            
+            Parameters:
+            ax -> Figure axis (for plotting)
+            blur_hist -> Add Gaussian convolution (blur) to reduce resolution (for simulated data)
+        '''
+        
+        # Tomogram data (Cartesian)
         hist2d_cart = self.hist2d_cart
         hist2d_cart = np.transpose(hist2d_cart)
-        if blur_hist == True:
-            # Blur 2D histogram
+        
+        # Add blur
+        if blur_hist == True: 
             hist2d_cart = img.blur(hist2d_cart)
+            
+        # Plot tomogram on ax
         ax.pcolormesh(self.vx_bins, self.vy_bins, hist2d_cart)
         
     def plot_data_polar(self, ax, blur_hist=False):
+        '''Plot polar tomogram of particle velocity data
+            
+            Parameters:
+            ax -> Figure axis (for plotting)
+            blur_hist -> Add Gaussian convolution (blur) to reduce resolution (for simulated data)
+        '''
+        
+        # Tomogram data (polar)
         hist2d_polar = self.hist2d_polar
         hist2d_polar = np.transpose(hist2d_polar)
+        
+        # Add blur
         if blur_hist == True:
-            # Blur 2D histogram
             hist2d_polar = img.blur(hist2d_polar)
+        
+        # Plot tomogram on ax
         ax.pcolormesh(self.alpha_bins, self.v_mag_bins, hist2d_polar)                
 
+
+'''Load files with particle velocity data from command line'''
 parser = argparse.ArgumentParser(description='Some files.',formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files',nargs='+',help='files with the appropriate particle data')
-args = parser.parse_args()
+args = parser.parse_args() # Files with particle velocity data
 
 def read_data(file_list, obs=False, sep_tstep=False):
-    if obs == False: # Import particle data from filenames on command line
-        data = rd.particle_data(file_list, sep_tstep=sep_tstep)
-        run_name = file_list[0].split('/')[2] #
-    else: # Import observational data from Manser et al. (2016)
-        obs_filename = 'map10000_2.fits'
-        scale_per_pixel = 5 #km/s per pixel
-        data = rd.obs_2Dhist(filename=obs_filename, scale_per_pixel=scale_per_pixel)
-        run_name = 'obs'
+    '''Read data from files in file_list and convert into appropriate format
+        
+        Parameters:
+        file_list -> List of files from which to read data
+        obs -> Read observational data files
+        sep_tstep -> Separate particle data by timestep (i.e. by file)
+        
+        Returns:
+        data -> Particle velocity data, either simulated (arrays) or observational (2D histogram)
+        run_name -> Partial filename for saving plots of data
+    '''
+    
+    # Import simulated particle data from filenames on command line
+    if obs == False: 
+        data = rd.particle_data(file_list, sep_tstep=sep_tstep) # Create arrays of particle velocity data
+        run_name = file_list[0].split('/')[2] # Partial filename for creating plot filenames
+       
+    # Import observational data
+    else:
+        obs_filename = 'map10000_2.fits' # Observational data from Manser et al. (2016)
+        scale_per_pixel = 5 # Scale of observational 2D histogram in km/s per pixel from Manser et al. (2016)
+        data = rd.obs_2Dhist(filename=obs_filename, scale_per_pixel=scale_per_pixel) # Read in 2D histogram data from file
+        run_name = 'obs' # Partial filename for creating plot filenames
+        
     return data, run_name
 
-'''
-Functions for ellipse fitting
-'''
+
+''' Functions for fitting eccentric orbits to velocity data'''
+
 def find_ellipse(data, obs=False, plot=False):
+    '''Find centre of gas disc on 2D histogram in polar coordinates
+        
+        Parameters:
+        data -> Particle velocity data
+        obs -> Read observational data files
+        plot -> Plot location of disc centre on tomogram
+        
+        Returns:
+        alpha -> Array of angles in velocity space
+        v_max -> Array of velocity magnitude with the highest tomogram value (for each alpha)
+        v_max_err -> Array of uncertainties in v_max
+        hist_max -> Array of highest tomogram value (for each alpha)
+    '''
+    
+    # Create polar tomogram from particle velocity data
     tom = Tomogram(data, obs=obs)
-    hist2d_polar = tom.hist2d_polar
+    hist2d_polar = tom.hist2d_polar # 
+    
+    # Get velocity magnitudes (v_mag) and angles in velocity space (alpha) from particle data
     alpha, v_mag = edges_to_val(tom.alpha_bins), edges_to_val(tom.v_mag_bins)
     
-    # Find maximum v_mag for each alpha
-    v_max = np.array([])
-    v_max_err = np.array([])
-    hist_max = np.array([])
-    for n in range(len(hist2d_polar)):
-        alpha_col = hist2d_polar[n,:] # Array of histogram values for one alpha
-        hist_max_n = np.amax(alpha_col) # Maximum histogram value
+    # Determine value of v_mag containing greatest number particles for each alpha
+    v_max = np.array([]) # v_mag value with the highest tomogram value for each value of alpha
+    v_max_err = np.array([]) # Uncertainty in v_max
+    hist_max = np.array([]) # Highest tomogram value for each alpha
+    for n in range(len(hist2d_polar)): # For each value of alpha
+        alpha_col = hist2d_polar[n,:] # Tomogram values for single alpha value
+        
+        # Find max tomogram value
+        hist_max_n = np.amax(alpha_col) # Max tomogram value
         hist_max = np.append(hist_max, hist_max_n)
-        hist_max_arg = np.argmax(alpha_col) # Index of max histogram value
-        v_max_n = v_mag[-1]*hist_max_arg/len(alpha_col) # v_mag value of max hist val
+        
+        # Find associated v_mag value
+        hist_max_arg = np.argmax(alpha_col) # Index of max tomogram value
+        v_max_n = v_mag[-1]*hist_max_arg/len(alpha_col) # v_mag value of max tomogram value
         v_max = np.append(v_max, v_max_n)
+        
+        # Find mean and std for a Gaussian distribution fit to alpha_col
         mean = np.sum(v_mag*alpha_col)/np.sum(alpha_col)
         sigma = np.sqrt(np.sum((v_mag - v_max_n)**2)/np.sum(v_mag))
-        #if n % 10 == 0:
+        #if n % 10 == 0: # Plot alpha_col
             #print(sigma)
-            #plot_Gaussian(n, v_mag, hist2d_polar) # Plot Gaussian
-        v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_mag_max
+            #plot_Gaussian(n, v_mag, hist2d_polar) # Plot data with Gaussian fit
+        v_max_err = np.append(v_max_err, sigma) # Uncertainty in v_max
     
-    if plot == True: # Plot maximum v_mag
+    if plot == True: # Plot v_max with uncertainty
         fig, axs = plt.subplots(1, figsize=(10,10))    
-        tom.plot_data_polar(axs)
-        axs.errorbar(alpha, v_max, yerr=v_max_err, label='plot err')
+        tom.plot_data_polar(axs) # Plot tomogram data
+        axs.errorbar(alpha, v_max, yerr=v_max_err, label='plot err') # Plot v_max
         plt.legend()
         plt.show()
     
