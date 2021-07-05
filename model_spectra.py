@@ -320,12 +320,35 @@ def find_ellipse(data, obs=False, plot=False):
     return alpha, v_max, v_max_err, hist_max
 
 def get_ellipse_parameters(alpha, v_mag, v_mag_err):
-    # Get values for the parameters of the ellipse
-    nll = lambda *args: -prms.log_likelihood(*args) # Log likelihood function
-    initial_guess = np.array([0.73, 0.54, 17, 0, 0, 0]) # Initial guess for parameters
-    bnds = ((1e-8, 10),(0, 0.999),(17,17),(-360,360),(-360,360),(-360, 360)) # Bounds on the parameters
+    '''Find best fitting orbit parameters for centre of gas disc.
+        
+        Parameters:
+        alpha -> Array of angles in velocity space
+        v_max -> Array of velocity magnitudes at the centre of the disc
+        v_max_err -> Array of uncertainties in v_max
+        
+        Returns:
+        params -> Best fitting orbit parameters
+        a - Semimajor axis (R_Sun)
+        e - Eccentricity
+        i - Inclination (deg)
+        O - Longitude of the ascending node (deg)
+        w - Argument of periapsis (deg)
+        f - True anomaly (deg)
+    '''
+    
+    # Set log likelihood function (to optimise for best fit orbit parameters)
+    nll = lambda *args: -prms.log_likelihood(*args) 
+    
+    # Set initial guess and bounds for orbit parameters
+    initial_guess = np.array([0.73, 0.54, 17, 0, 0, 0]) # Initial guess
+    bnds = ((1e-8, 10),(0, 0.999),(17,17),(-360,360),(-360,360),(-360, 360)) # Bounds
+    
+    # Optimise orbit parameters
     params = minimize(nll, initial_guess, bounds=bnds, args=(alpha, v_mag, v_mag_err))
     semia, e, i, O, w, f = params.x
+    
+    # Print best fitting orbit parameters
     print("Maximum likelihood estimates:")
     print("semia = {0:.3f}".format(semia))
     print("e = {0:.3f}".format(e))
@@ -333,43 +356,60 @@ def get_ellipse_parameters(alpha, v_mag, v_mag_err):
     print("O = {0:.3f}".format(O))
     print("w = {0:.3f}".format(w))
     print("f = {0:.3f}".format(f))
+    
     return params
 
 def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=False, corner_plot=False):
-    pos = params.x + 1e-4*np.random.randn(32,6)
-    nwalkers, ndim = pos.shape
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, prms.log_probability, args=(alpha, v_mag, v_mag_err))
-    sampler.run_mcmc(pos, 5000, progress=True);
+    '''Find uncertainties on the best fitting orbit parameters for centre of gas disc using MCMC.
+        
+        Parameters:
+        params -> Orbit parameters for centre of disc
+        alpha -> Array of angles in velocity space
+        v_max -> Array of velocity magnitudes at the centre of the disc
+        v_max_err -> Array of uncertainties in v_max
+        plot_sampler_steps -> Plot chain of MCMC samples for each orbit parameter
+        corner_plot -> Produce corner plot for orbit parameters
+    '''
     
-    if plot_sampler_steps == True:
-        # Plot steps of emcee sampler
+    # Initialise MCMC walker positions in parameter space
+    pos = params.x + 1e-4*np.random.randn(32,6) # Set positions of walkers
+    nwalkers, ndim = pos.shape # Number of walkders and dimensions in parameter space
+    
+    # Initialise and run emcee (MCMC) sampler
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, prms.log_probability, args=(alpha, v_mag, v_mag_err))
+    sampler.run_mcmc(pos, 5000, progress=True); # Run emcee sampler for 5000 steps
+    
+    if plot_sampler_steps == True: # Plot steps of emcee sampler
         fig, axes = plt.subplots(6, figsize=(10,7), sharex=True)
-        samples = sampler.get_chain()
-        labels = ["semia", "e", "i", "O", "w", "f"]
-        for i in range(ndim):
+        samples = sampler.get_chain() # Array of samples for each orbit parameter
+        labels = ["semia", "e", "i", "O", "w", "f"] # y-axis labels
+        for i in range(ndim): # For each orbit parameter
             ax = axes[i]
-            ax.plot(samples[:,:,i], "k", alpha=0.3)
+            ax.plot(samples[:,:,i], "k", alpha=0.3) # Plot emcee sampler steps
             ax.set_xlim(0, len(samples))
             ax.set_ylabel(labels[i])
         axes[-1].set_xlabel("step number")
         print("Plot sampler steps")
         plt.savefig('./emcee_plots/WD_obs_setei_sampler_steps.png')
         plt.show()
-
+    
+    # Get autocorrelation time for emcee sampler
     tau = sampler.get_autocorr_time()
     print("tau =",tau)
-
+    
+    # Determine number of samples after discarding burn-in
     flat_samples = sampler.get_chain(discard=100, thin=15, flat=True)
     print("Shape of flat_samples:",flat_samples.shape)
-    # Create corner plot
-    if corner_plot == True:
-        fig = corner.corner(flat_samples, labels=labels);
+    
+    if corner_plot == True: # Create corner plot for orbit parameters
+        fig = corner.corner(flat_samples, labels=labels); # Create corner plot
         plt.savefig('./emcee_plots/WD_obs_setei_corner_plot.png')
         plt.show()
-
+    
+    # Find percentiles in emcee samples to determine uncertainty
     for i in range(ndim):
         mcmc = np.percentile(flat_samples[:, i], [16, 50, 84])
-        q = np.diff(mcmc)
+        q = np.diff(mcmc) # Uncertainties in orbit parameters
         print(labels[i],'=',params.x[i],'(+',q[1],', -',q[0],')')
 
 '''
