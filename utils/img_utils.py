@@ -3,9 +3,8 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.ndimage import map_coordinates
 
-'''
-Convert images to polar coordinates
-'''
+''' Convert tomograms from Cartesian to polar coordinates '''
+
 def index_coords(data, origin=None):
     """Creates x & y coords for the indicies in a numpy array "data".
     "origin" defaults to the center of the image. Specify origin=(0,0)
@@ -30,7 +29,7 @@ def polar2cart(r, theta):
     y = r * np.sin(theta)
     return x, y
 
-def reproject_image_into_polar(data, origin=None):
+def reproject_image_into_polar(data, origin=None): # Convert images to polar coordinates
     """Reprojects a 3D numpy array ("data") into a polar coordinate system.
     "origin" is a tuple of (x0, y0) and defaults to the center of the image."""
     ny, nx = data.shape[:2]
@@ -58,7 +57,7 @@ def reproject_image_into_polar(data, origin=None):
     output = zi.reshape((nx, ny))
     return output, r_i, theta_i
 
-def obs_hist2D_to_polar(data, x, y):
+def obs_hist2D_to_polar(data, x, y): # Convert tomogram to polar coordinates
     data_polar, r_i, theta_i = reproject_image_into_polar(data)
     r_ran = np.sqrt(np.amax(x)**2 + np.amax(y)**2) # Range of real r values
     r = r_i * r_ran/np.amax(r_i)
@@ -70,14 +69,24 @@ def obs_hist2D_to_polar(data, x, y):
 Functions for altering 2D histogram data
 '''
 def blur(img):
-        # Create a 1D Gaussian to blur the histogram
+        '''Create a 1D Gaussian to blur the tomogram
+        
+            Parameters:
+            img -> Unblurred tomogram
+            
+            Returns:
+            img_convolve -> Blurred tomogram
+        '''
+        
         tom_pixels = 65 # Number of pixels on each side of the tomogram
         t = np.linspace(-10, 10, tom_pixels)
         sigma = 0.25 # Increasing this increases the blurring of the tomogram
         bump = np.exp(-0.5*t**2/sigma**2)
         bump /= np.trapz(bump) # Normalize the integral to 1
-        # Make a 2D kernal out of it
+        
+        # Make a 2D kernel out of it
         kernel = bump[:, np.newaxis] * bump[np.newaxis, :]
         img_convolve = signal.fftconvolve(img, kernel[:, :], mode='same') # Convolve the tomogram
+        
         return img_convolve
 
