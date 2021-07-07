@@ -416,18 +416,18 @@ def get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_step
 Commands
 '''
 # Switch options on/off
-obs = True
-blur_hist = True # Histogram blurring
-polar = False # Switch between Cartesian and polar plotting
-plot_fit = False # Plot polar maxima (for tomogram)
-plot_orbit = False # Plot orbit with parameters semia, e, i, O, w, f
-angle = 90 # Angle (clockwise) from positive y axis at which spectral line is plotted
-plots = [4]
-# 1 - Plot tomogram
+obs = True # Plot observational data
+blur_hist = True # Blur tomogram (simulated data only)
+polar = False # Plot tomograms in polar coordinates
+plot_fit = False # Plot centre of gas disc (polar coordinates only)
+plot_orbit = False # Plot best fit orbit
+angle = 90 # Angle (clockwise) from positive y axis for plotting spectral lines
+plots = []
+# 1 - Plot single tomogram
 # 2 - Plot spectral line
 # 3 - Variability plot
-# 4 - Plot tomogram comparison (observational, model)
-# 5 - Plot tomogram eccentricity comparison
+# 4 - Plot tomogram comparison (observational, simulated)
+# 5 - Plot tomogram eccentricity comparison (4 axes)
 
 # Set the font (size) for plots
 font = {'size' : 22}
@@ -441,19 +441,20 @@ emcee_outpath = './emcee_plots/'
 data, run_name = read_data(args.files, obs=obs)
 #data.rotate(-0.25*np.pi*180/np.pi)
 
-# Fit ellipse and plot
+# Find centre of disc and fit orbit
 alpha, v_mag, v_mag_err, hist_max = find_ellipse(data, obs=obs)
 params = get_ellipse_parameters(alpha, v_mag, v_mag_err)
 semia, e, i, O, w, f = params.x
 
-# Get reduced chi-squared for fit
-v_mag_mod = orb.get_model_3D(alpha, semia, e , i, O, w, f) # Velocity magnitudes using the model
-chisq = prms.redchisqg(v_mag, v_mag_mod, deg=6, sd=v_mag_err)
+# Get reduced chi-squared for orbit fit
+v_mag_mod = orb.get_model_3D(alpha, semia, e , i, O, w, f) # Velocity magnitudes using best fit orbit
+chisq = prms.redchisqg(v_mag, v_mag_mod, deg=6, sd=v_mag_err) # Chi-squared values
 print('Chi_sq =',chisq)
 
+# Get uncertainties on orbit fit
 #get_ellipse_uncertainties(params, alpha, v_mag, v_mag_err, plot_sampler_steps=True, corner_plot=True)
 
-if 1 in plots: # Plot tomogram
+if 1 in plots: # Plot single tomogram
     tom = Tomogram(data, obs=obs)
     fig, axs = plt.subplots(1, figsize=(10,10))
     if polar == True: # Plot in polar coordinates
@@ -511,8 +512,8 @@ if 3 in plots: # Plot variability of Ca II emission lines
 
 if 4 in plots: # Plot tomogram comparison
     # Plotted orbits will only be from a fit to a single set of data
-    data_obs, run_name = read_data(args.files, obs=True)
-    data_sim, run_name = read_data(args.files, obs=False)
+    data_obs, run_name = read_data(args.files, obs=True) # Read in observational data
+    data_sim, run_name = read_data(args.files, obs=False) # Read in simulated data
     data_sim.rotate(-0.25*np.pi*180/np.pi)
     tom_obs = Tomogram(data_obs, obs=True)
     tom_sim = Tomogram(data_sim, obs=False)
@@ -569,7 +570,7 @@ if 5 in plots: # Plot tomogram comparison
     # Plotted orbits will only be from a fit to a single set of data
     data, tom = [], []
     ecc = [0.1, 0.3, 0.5, 0.7]
-    for n in range(4):
+    for n in range(4): # Read in and sort files from all eccentricities
         file_list = rd.find_files(args.files, ecc[n], 99)
         data_n, run_name = read_data(file_list, obs=False)
         tom_n = Tomogram(data_n, obs=False)
