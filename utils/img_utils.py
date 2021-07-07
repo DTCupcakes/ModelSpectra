@@ -65,9 +65,8 @@ def obs_hist2D_to_polar(data, x, y): # Convert tomogram to polar coordinates
     data_polar = np.transpose(data_polar)
     return data_polar, r, theta
 
-'''
-Functions for altering 2D histogram data
-'''
+''' Functions for altering tomogram data '''
+
 def blur(img):
         '''Create a 1D Gaussian to blur the tomogram
         
